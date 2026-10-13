@@ -217,11 +217,23 @@ class VirtualArcadeControls {
 
         // Action Buttons (A, B, Special, Coin, Start)
         const actionBtns = this.container.querySelectorAll("[data-action]");
+        let lastActionTime = 0;
+        let lastActionName = '';
+
         actionBtns.forEach(btn => {
             const act = btn.getAttribute("data-action");
 
             const handleStart = (e) => {
-                e.preventDefault();
+                if (e.cancelable) e.preventDefault();
+                
+                // Deduplicate touchstart followed by mousedown
+                const now = Date.now();
+                if (lastActionName === act && now - lastActionTime < 250) {
+                    return;
+                }
+                lastActionTime = now;
+                lastActionName = act;
+
                 btn.classList.add("active");
 
                 if (act === "coin" && window.arcadeSFX) {
@@ -231,12 +243,22 @@ class VirtualArcadeControls {
                 }
 
                 this.press(act);
+
+                // Auto-pulse coin so it never registers multiple credits on one tap
+                if (act === "coin") {
+                    setTimeout(() => {
+                        this.release("coin");
+                        btn.classList.remove("active");
+                    }, 45);
+                }
             };
 
             const handleEnd = (e) => {
-                e.preventDefault();
+                if (e.cancelable) e.preventDefault();
                 btn.classList.remove("active");
-                this.release(act);
+                if (act !== "coin") {
+                    this.release(act);
+                }
             };
 
             btn.addEventListener("touchstart", handleStart, { passive: false });

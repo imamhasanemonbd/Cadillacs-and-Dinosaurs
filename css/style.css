@@ -352,10 +352,74 @@ html, body {
         padding: 5px 10px;
         gap: 6px;
     }
-    .hud-pill-btn {
-        padding: 5px 10px;
-        font-size: 11px;
-    }
+}
+
+/* Cheat Toolbar & Live HUD Buttons */
+.cheat-btn {
+    border-color: rgba(255, 255, 255, 0.12);
+    transition: all 0.2s ease;
+}
+
+.cheat-btn#btn-cheat-immortal.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--neon-green);
+    color: var(--neon-green);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+
+.cheat-btn#btn-cheat-ammo.active {
+    background: rgba(255, 183, 3, 0.2);
+    border-color: var(--neon-amber);
+    color: var(--neon-amber);
+    box-shadow: var(--glow-amber);
+}
+
+.hud-pill-btn.hud-cheat {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-secondary);
+}
+
+.hud-pill-btn.hud-cheat#hud-btn-cheat-immortal.active {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: var(--neon-green);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+.hud-pill-btn.hud-cheat#hud-btn-cheat-ammo.active {
+    background: rgba(255, 183, 3, 0.25);
+    border-color: var(--neon-amber);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(255, 183, 3, 0.5);
+}
+
+.loading-subtext {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-family: var(--font-tech);
+}
+
+.btn-force-enter {
+    margin-top: 14px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--neon-cyan), #0284c7);
+    color: #000;
+    font-family: var(--font-tech);
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: var(--glow-cyan);
+    transition: all 0.2s ease;
+    animation: pulse-glow 1.5s infinite;
+}
+
+.btn-force-enter:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 25px rgba(0, 245, 212, 0.8);
 }
 
 /* ==========================================================================

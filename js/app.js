@@ -13,6 +13,18 @@ class DinoArcadeApp {
         this.romUrl = 'roms/dino.zip';
         this.fallbackRomUrl = 'https://archive.org/download/cadillacs-and-dinosaurs-world/dino.zip';
         
+        // Single coin debounce guard
+        this.isCoinDebouncing = false;
+
+        // Fast In-Game Cheats
+        this.cheats = { immortal: false, ammo: false };
+        this.cheatInterval = null;
+
+        // Dynamic Loading synchronization
+        this.progressObserver = null;
+        this.startupCheckInterval = null;
+        this.gameReadyDismissed = false;
+        
         this.elements = {};
     }
 
@@ -48,13 +60,21 @@ class DinoArcadeApp {
             startOverlay: document.getElementById('start-overlay'),
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingText: document.getElementById('loading-text'),
+            loadingSubtext: document.getElementById('loading-subtext'),
             loadingProgress: document.getElementById('loading-progress-bar'),
+            btnForceEnter: document.getElementById('btn-force-enter-game'),
             btnStart: document.getElementById('btn-start-game'),
             btnInsertCoin: document.getElementById('btn-insert-coin'),
             btnStartP1: document.getElementById('btn-start-p1'),
+            btnCheatImmortal: document.getElementById('btn-cheat-immortal'),
+            btnCheatAmmo: document.getElementById('btn-cheat-ammo'),
             liveHud: document.getElementById('arcade-live-hud'),
             hudBtnCoin: document.getElementById('hud-btn-coin'),
             hudBtnStart: document.getElementById('hud-btn-start'),
+            hudBtnCheatImmortal: document.getElementById('hud-btn-cheat-immortal'),
+            hudBtnCheatAmmo: document.getElementById('hud-btn-cheat-ammo'),
+            hudStatusImmortal: document.getElementById('hud-status-immortal'),
+            hudStatusAmmo: document.getElementById('hud-status-ammo'),
             creditsDisplay: document.getElementById('credits-counter'),
             btnFullscreen: document.getElementById('btn-toggle-fullscreen'),
             btnCrt: document.getElementById('btn-toggle-crt'),
@@ -96,6 +116,28 @@ class DinoArcadeApp {
 
         this.elements.hudBtnStart?.addEventListener('click', () => {
             this.pressStart();
+        });
+
+        // Fast In-Game Cheats: Immortal and Unlimited Ammo
+        this.elements.btnCheatImmortal?.addEventListener('click', () => {
+            this.toggleCheat('immortal');
+        });
+
+        this.elements.btnCheatAmmo?.addEventListener('click', () => {
+            this.toggleCheat('ammo');
+        });
+
+        this.elements.hudBtnCheatImmortal?.addEventListener('click', () => {
+            this.toggleCheat('immortal');
+        });
+
+        this.elements.hudBtnCheatAmmo?.addEventListener('click', () => {
+            this.toggleCheat('ammo');
+        });
+
+        // Force Enter Game Button
+        this.elements.btnForceEnter?.addEventListener('click', () => {
+            this.forceEnterGame();
         });
 
         // Fullscreen Toggle
@@ -183,6 +225,13 @@ class DinoArcadeApp {
             else if (e.key === '1' || e.code === 'Digit1' || e.key === 'Enter') {
                 this.pressStart();
             } 
+            // Cheat shortcuts: G = God Mode / Immortal, U = Unlimited Ammo
+            else if (e.key === 'g' || e.key === 'G') {
+                this.toggleCheat('immortal');
+            } 
+            else if (e.key === 'u' || e.key === 'U') {
+                this.toggleCheat('ammo');
+            }
             else if (e.key === 'f' || e.key === 'F') {
                 if (!e.ctrlKey && !e.metaKey) {
                     this.toggleFullscreen();
@@ -204,6 +253,10 @@ class DinoArcadeApp {
     }
 
     insertCoin() {
+        if (this.isCoinDebouncing) return;
+        this.isCoinDebouncing = true;
+        setTimeout(() => { this.isCoinDebouncing = false; }, 350);
+
         this.credits++;
         if (this.elements.creditsDisplay) {
             this.elements.creditsDisplay.textContent = String(this.credits).padStart(2, '0');
@@ -216,25 +269,30 @@ class DinoArcadeApp {
         // Animate coin button
         if (this.elements.btnInsertCoin) {
             this.elements.btnInsertCoin.classList.add('coin-inserted');
-            setTimeout(() => this.elements.btnInsertCoin.classList.remove('coin-inserted'), 300);
+            setTimeout(() => this.elements.btnInsertCoin.classList.remove('coin-inserted'), 250);
         }
 
         // Direct C-level WASM injection into RetroArch/FBNeo core (Button 2 is INSERT COIN!)
+        // 45ms pulse ensures exactly 1 coin is registered without multi-tick chute bounce
+        let coinSent = false;
         if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === 'function') {
             try {
                 window.EJS_emulator.gameManager.simulateInput(0, 2, 1);
                 setTimeout(() => {
-                    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
-                        window.EJS_emulator.gameManager.simulateInput(0, 2, 0);
-                    }
-                }, 150);
+                    try {
+                        if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+                            window.EJS_emulator.gameManager.simulateInput(0, 2, 0);
+                        }
+                    } catch (_) {}
+                }, 45);
+                coinSent = true;
             } catch (_) {}
         }
 
-        // Dispatch synthetic coin key to emulator
-        if (this.gameStarted && window.virtualArcadeControls) {
+        // Fallback to synthetic key ONLY if simulateInput was NOT available
+        if (!coinSent && this.gameStarted && window.virtualArcadeControls) {
             window.virtualArcadeControls.press('coin');
-            setTimeout(() => window.virtualArcadeControls.release('coin'), 120);
+            setTimeout(() => window.virtualArcadeControls.release('coin'), 45);
         }
 
         // Focus canvas
@@ -248,7 +306,7 @@ class DinoArcadeApp {
             this.elements.hudBtnStart.classList.add('pulse');
         }
 
-        this.showToast(`🪙 Coin Accepted! (${this.credits} Credit${this.credits > 1 ? 's' : ''}) • Click ▶ 1P START or press Enter / 1`, 'success');
+        this.showToast(`🪙 1 Coin Added (${this.credits} Credit${this.credits > 1 ? 's' : ''}) • Click ▶ 1P START or press Enter / 1`, 'success');
     }
 
     pressStart() {
@@ -262,21 +320,25 @@ class DinoArcadeApp {
         }
 
         // Direct C-level WASM injection into RetroArch/FBNeo core (Button 3 is 1P START!)
+        let startSent = false;
         if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === 'function') {
             try {
                 window.EJS_emulator.gameManager.simulateInput(0, 3, 1);
                 setTimeout(() => {
-                    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
-                        window.EJS_emulator.gameManager.simulateInput(0, 3, 0);
-                    }
-                }, 150);
+                    try {
+                        if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+                            window.EJS_emulator.gameManager.simulateInput(0, 3, 0);
+                        }
+                    } catch (_) {}
+                }, 100);
+                startSent = true;
             } catch (_) {}
         }
 
-        // Also dispatch synthetic keys Enter and 1
-        if (window.virtualArcadeControls) {
+        // Also dispatch synthetic keys Enter and 1 as fallback
+        if (!startSent && window.virtualArcadeControls) {
             window.virtualArcadeControls.press('start');
-            setTimeout(() => window.virtualArcadeControls.release('start'), 150);
+            setTimeout(() => window.virtualArcadeControls.release('start'), 100);
         }
 
         // Focus canvas so next keys (Left/Right, Attack) go to the game
@@ -290,7 +352,7 @@ class DinoArcadeApp {
             this.elements.hudBtnStart.classList.remove('pulse');
         }
 
-        this.showToast('🚀 1P START Triggered! Pick your fighter with ← / → and press Attack (Z / J)!', 'success');
+        this.showToast('🚀 1P START Triggered! Pick fighter (← / →) & press Attack (Z / J)!', 'success');
     }
 
     startGame() {
@@ -309,7 +371,7 @@ class DinoArcadeApp {
             this.elements.loadingOverlay.classList.remove('hidden');
         }
 
-        this.setLoadingProgress(15, 'Preparing WebAssembly Arcade Engine (FBNeo)...');
+        this.setLoadingProgress(15, 'Preparing WebAssembly Arcade Engine (FBNeo)...', 'Loading emulator scripts');
         this.loadEmulator();
     }
 
@@ -317,7 +379,13 @@ class DinoArcadeApp {
         if (this.emulatorLoaded) return;
         this.emulatorLoaded = true;
 
-        this.setLoadingProgress(35, 'Fetching Capcom CPS-1.5 ROM (dino.zip)...');
+        this.setLoadingProgress(25, 'Downloading Capcom CPS-1 Core (FBNeo)...', 'Connecting to high-speed CDN');
+
+        // Configure Cheats in EmulatorJS
+        window.EJS_cheats = [
+            ["🛡️ Immortal (Infinite Health)", "FFB2E1+64"],
+            ["🔫 Unlimited Ammo (All Weapons)", "FFB6CE+63"]
+        ];
 
         // Configure Default Controls for Arcade
         window.EJS_defaultControls = {
@@ -348,21 +416,14 @@ class DinoArcadeApp {
         // Callbacks
         window.EJS_onGameStart = () => {
             console.log('[DINO] Game loop started at 60 FPS');
-            this.setLoadingProgress(100, 'Game Ready!');
-            setTimeout(() => {
-                if (this.elements.loadingOverlay) {
-                    this.elements.loadingOverlay.classList.add('hidden');
-                }
-                if (this.elements.liveHud) {
-                    this.elements.liveHud.classList.remove('hidden');
-                }
-                this.focusGameCanvas();
-                this.showToast('🦖 Game Ready! Click 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
-            }, 400);
+            this.dismissLoadingOverlay();
         };
 
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
         window.EJS_onSaveState = () => this.showToast('💾 State Saved Successfully', 'info');
+
+        // Start watching real-time EmulatorJS progress and canvas attachment
+        this.setupEmulatorProgressWatcher();
 
         // Dynamically load EmulatorJS loader script
         const script = document.createElement('script');
@@ -370,17 +431,197 @@ class DinoArcadeApp {
         script.async = true;
 
         script.onload = () => {
-            this.setLoadingProgress(60, 'Initializing Virtual System & Video Buffer...');
+            this.setLoadingProgress(40, 'Engine scripts loaded, compiling core...', 'Downloading 8.2MB FBNeo WASM binary');
         };
 
         script.onerror = () => {
             console.warn('[DINO] Primary CDN failed, attempting fallback...');
-            this.setLoadingProgress(70, 'Connecting to fallback mirror...');
+            this.setLoadingProgress(60, 'Connecting to fallback mirror...', 'Retrying ROM mirror');
             window.EJS_gameUrl = this.fallbackRomUrl;
             this.showToast('Retrying with backup ROM mirror...', 'warn');
         };
 
         document.body.appendChild(script);
+    }
+
+    setupEmulatorProgressWatcher() {
+        const viewport = this.elements.gameViewport;
+        if (!viewport) return;
+
+        const checkProgress = () => {
+            // Find EmulatorJS loading text (updates with "Download Game Core XX%", "Download Game Data XX%")
+            const textElem = viewport.querySelector('.ejs_loading_text') || viewport.querySelector('[class*="loading"]');
+            if (textElem && textElem.innerText) {
+                const text = textElem.innerText.trim();
+                if (text) {
+                    let percent = 50;
+                    const match = text.match(/(\d+)%/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (text.toLowerCase().includes('core')) {
+                            percent = Math.min(65, 30 + Math.round(num * 0.35));
+                        } else {
+                            percent = Math.min(95, 65 + Math.round(num * 0.3));
+                        }
+                    } else if (text.toLowerCase().includes('core')) {
+                        percent = 45;
+                    } else if (text.toLowerCase().includes('data') || text.toLowerCase().includes('rom')) {
+                        percent = 78;
+                    } else if (text.toLowerCase().includes('loading') || text.toLowerCase().includes('start')) {
+                        percent = 92;
+                    }
+                    this.setLoadingProgress(percent, text, 'Downloading arcade assets...');
+                }
+            }
+
+            // Check if canvas has started rendering or emulator started
+            const canvas = viewport.querySelector('canvas');
+            if ((canvas || (window.EJS_emulator && window.EJS_emulator.started)) && !this.gameReadyDismissed) {
+                this.dismissLoadingOverlay();
+            }
+        };
+
+        // Mutation Observer on game viewport
+        try {
+            this.progressObserver = new MutationObserver(checkProgress);
+            this.progressObserver.observe(viewport, { childList: true, subtree: true, characterData: true });
+        } catch (_) {}
+
+        // Fallback polling interval
+        this.startupCheckInterval = setInterval(checkProgress, 200);
+
+        // After 4.5 seconds, reveal the force enter button in case audio policy or prompt is waiting
+        setTimeout(() => {
+            if (!this.gameReadyDismissed && this.elements.btnForceEnter) {
+                this.elements.btnForceEnter.style.display = 'inline-flex';
+                if (this.elements.loadingSubtext) {
+                    this.elements.loadingSubtext.textContent = 'Engine ready! Tap below if video does not auto-enter.';
+                }
+            }
+        }, 4500);
+    }
+
+    dismissLoadingOverlay() {
+        if (this.gameReadyDismissed) return;
+        this.gameReadyDismissed = true;
+
+        if (this.startupCheckInterval) {
+            clearInterval(this.startupCheckInterval);
+            this.startupCheckInterval = null;
+        }
+        if (this.progressObserver) {
+            this.progressObserver.disconnect();
+            this.progressObserver = null;
+        }
+
+        this.setLoadingProgress(100, 'Game Ready!', 'Entering 60 FPS arcade screen...');
+        setTimeout(() => {
+            if (this.elements.loadingOverlay) {
+                this.elements.loadingOverlay.classList.add('hidden');
+            }
+            if (this.elements.liveHud) {
+                this.elements.liveHud.classList.remove('hidden');
+            }
+            this.focusGameCanvas();
+            this.applyActiveCheats();
+            this.showToast('🦖 Cadillacs & Dinosaurs Ready! Click 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
+        }, 300);
+    }
+
+    forceEnterGame() {
+        if (window.arcadeSFX) window.arcadeSFX.playStartSound();
+
+        // Trigger EmulatorJS internal start button if waiting
+        const ejsStartBtn = this.elements.gameViewport?.querySelector('.ejs_start_button, [class*="start"], button');
+        if (ejsStartBtn) {
+            try { ejsStartBtn.click(); } catch (_) {}
+        }
+        if (window.EJS_emulator && typeof window.EJS_emulator.startButtonClicked === 'function') {
+            try { window.EJS_emulator.startButtonClicked(ejsStartBtn || {}); } catch (_) {}
+        }
+
+        this.dismissLoadingOverlay();
+    }
+
+    setLoadingProgress(percent, message, submessage) {
+        if (this.elements.loadingProgress) {
+            this.elements.loadingProgress.style.width = `${percent}%`;
+        }
+        if (this.elements.loadingText && message) {
+            this.elements.loadingText.textContent = message;
+        }
+        if (this.elements.loadingSubtext && submessage) {
+            this.elements.loadingSubtext.textContent = submessage;
+        }
+    }
+
+    toggleCheat(type) {
+        if (window.arcadeSFX) window.arcadeSFX.playClick();
+
+        if (type === 'immortal') {
+            this.cheats.immortal = !this.cheats.immortal;
+            const active = this.cheats.immortal;
+
+            // Update UI buttons
+            this.elements.btnCheatImmortal?.classList.toggle('active', active);
+            this.elements.hudBtnCheatImmortal?.classList.toggle('active', active);
+            if (this.elements.hudStatusImmortal) {
+                this.elements.hudStatusImmortal.textContent = active ? 'ON' : 'OFF';
+            }
+
+            // Apply via RetroArch/FBNeo WASM Cheat Engine (0xFFB2E1 = 100 HP)
+            this.applyCheatCode(0, active, 'FFB2E1+64');
+
+            this.showToast(active ? '🛡️ Immortal Mode: ACTIVE (Player 1 Cannot Die)' : '🛡️ Immortal Mode: OFF', active ? 'success' : 'info');
+        } else if (type === 'ammo') {
+            this.cheats.ammo = !this.cheats.ammo;
+            const active = this.cheats.ammo;
+
+            // Update UI buttons
+            this.elements.btnCheatAmmo?.classList.toggle('active', active);
+            this.elements.hudBtnCheatAmmo?.classList.toggle('active', active);
+            if (this.elements.hudStatusAmmo) {
+                this.elements.hudStatusAmmo.textContent = active ? 'ON' : 'OFF';
+            }
+
+            // Apply via RetroArch/FBNeo WASM Cheat Engine (0xFFB6CE = 99 Bullets)
+            this.applyCheatCode(1, active, 'FFB6CE+63');
+
+            this.showToast(active ? '🔫 Unlimited Ammo: ACTIVE (All Weapons Have 99 Ammo)' : '🔫 Unlimited Ammo: OFF', active ? 'success' : 'info');
+        }
+
+        this.startCheatKeeperLoop();
+    }
+
+    applyCheatCode(index, enabled, code) {
+        if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.setCheat === 'function') {
+            try {
+                window.EJS_emulator.gameManager.setCheat(index, enabled ? 1 : 0, code);
+            } catch (_) {}
+        }
+    }
+
+    startCheatKeeperLoop() {
+        if (this.cheatInterval) return;
+
+        // Reinforce cheat memory values during gameplay every 250ms
+        this.cheatInterval = setInterval(() => {
+            if (!this.cheats.immortal && !this.cheats.ammo) {
+                clearInterval(this.cheatInterval);
+                this.cheatInterval = null;
+                return;
+            }
+            this.applyActiveCheats();
+        }, 250);
+    }
+
+    applyActiveCheats() {
+        if (this.cheats.immortal) {
+            this.applyCheatCode(0, true, 'FFB2E1+64');
+        }
+        if (this.cheats.ammo) {
+            this.applyCheatCode(1, true, 'FFB6CE+63');
+        }
     }
 
     loadCustomROMFile(file) {

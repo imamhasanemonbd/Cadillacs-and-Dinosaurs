@@ -61,6 +61,18 @@
                 <span class="btn-text">1P Start</span>
             </button>
 
+            <!-- Cheat: Immortal / God Mode -->
+            <button id="btn-cheat-immortal" class="arcade-tool-btn cheat-btn" title="Toggle Immortal / God Mode (Key: G)">
+                <span class="btn-icon">🛡️</span>
+                <span class="btn-text">Immortal</span>
+            </button>
+
+            <!-- Cheat: Unlimited Ammo -->
+            <button id="btn-cheat-ammo" class="arcade-tool-btn cheat-btn" title="Toggle Unlimited Ammo for All Weapons (Key: U)">
+                <span class="btn-icon">🔫</span>
+                <span class="btn-text">Ammo</span>
+            </button>
+
             <!-- CRT Toggle -->
             <button id="btn-toggle-crt" class="arcade-tool-btn active" title="Toggle Retro CRT Scanlines">
                 <span class="btn-icon">📺</span>
@@ -178,6 +190,10 @@
                         <div id="loading-progress-bar"></div>
                     </div>
                     <p id="loading-text">Preparing WebAssembly Engine...</p>
+                    <p id="loading-subtext" class="loading-subtext">Fetching core engine and arcade ROM...</p>
+                    <button id="btn-force-enter-game" class="btn-force-enter" style="display: none;" title="Bypass loader and enter game">
+                        <span>▶</span> ENTER GAME NOW
+                    </button>
                 </div>
             </div>
 
@@ -237,6 +253,12 @@
                 </button>
                 <button id="hud-btn-start" class="hud-pill-btn hud-start" title="Start Player 1 (Key: 1 or Enter)">
                     <span>▶</span> 1P START <span class="hud-key-hint">(1 / Enter)</span>
+                </button>
+                <button id="hud-btn-cheat-immortal" class="hud-pill-btn hud-cheat" title="Toggle Immortal / God Mode (Key: G)">
+                    <span>🛡️</span> Immortal: <span id="hud-status-immortal">OFF</span>
+                </button>
+                <button id="hud-btn-cheat-ammo" class="hud-pill-btn hud-cheat" title="Toggle Unlimited Ammo (Key: U)">
+                    <span>🔫</span> Ammo: <span id="hud-status-ammo">OFF</span>
                 </button>
                 <div class="hud-info-guide">
                     <span>Fighter: <strong>← / →</strong></span>
