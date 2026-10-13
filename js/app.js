@@ -16,9 +16,11 @@ class DinoArcadeApp {
         // Single coin debounce guard
         this.isCoinDebouncing = false;
 
-        // Fast In-Game Cheats
+        // Fast In-Game Cheats (Direct CPS-1 RAM Poking)
         this.cheats = { immortal: false, ammo: false };
+        this.cheatRafId = null;
         this.cheatInterval = null;
+        this.cheatRunning = false;
 
         // Dynamic Loading synchronization
         this.progressObserver = null;
@@ -29,6 +31,7 @@ class DinoArcadeApp {
     }
 
     init() {
+        this.initRamBaseDetector();
         this.cacheDOMElements();
         this.bindUIEvents();
         this.renderCharacterModal();
@@ -633,6 +636,99 @@ class DinoArcadeApp {
         this.showToast('🦖 Cadillacs & Dinosaurs Ready! Press 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
     }
 
+    initRamBaseDetector() {
+        // Intercept console messages and Module.print to dynamically capture RetroArch's Cheevos System RAM address
+        window.CPS1_RAM_BASE = window.CPS1_RAM_BASE || 0x68f1178;
+
+        const checkText = (text) => {
+            const m = String(text).match(/System RAM set to 0x([0-9a-fA-F]+)/i);
+            if (m) {
+                window.CPS1_RAM_BASE = parseInt(m[1], 16);
+                console.log('[DINO] Dynamically mapped CPS-1 System RAM at 0x' + window.CPS1_RAM_BASE.toString(16));
+            }
+        };
+
+        const origLog = console.log;
+        console.log = function(...args) {
+            origLog.apply(console, args);
+            checkText(args.join(' '));
+        };
+    }
+
+    getRamBase() {
+        if (window.CPS1_RAM_BASE) return window.CPS1_RAM_BASE;
+        const mod = window.EJS_emulator?.Module;
+        if (!mod || !mod.HEAPU8) return null;
+        // Known default FBNeo Emscripten base for 68000 Work RAM
+        const defaultBase = 0x68f1178;
+        if (defaultBase + 0xFFFF < mod.HEAPU8.length) {
+            window.CPS1_RAM_BASE = defaultBase;
+            return defaultBase;
+        }
+        return null;
+    }
+
+    applyImmortalCheat(heap, base) {
+        // Player 1 Health (0xFFB2E0 / 0xFFB2E2): Lock to 100 HP (0x64 full health bar)
+        heap[base + 0xB2E0] = 0x64;
+        heap[base + 0xB2E2] = 0x64;
+        // Player 1 Invincibility State (0xFFB274): 0x02 = fully impervious flashing state
+        heap[base + 0xB274] = 0x02;
+        // Player 1 Lives (0xFFB297): Lock to 9 lives
+        heap[base + 0xB297] = 0x09;
+
+        // Player 2 Health & Invincibility (if active)
+        heap[base + 0xB4E0] = 0x64;
+        heap[base + 0xB4E2] = 0x64;
+        heap[base + 0xB474] = 0x02;
+        heap[base + 0xB497] = 0x09;
+
+        // Player 3 Health & Invincibility (if active)
+        heap[base + 0xB6E0] = 0x64;
+        heap[base + 0xB6E2] = 0x64;
+        heap[base + 0xB674] = 0x02;
+        heap[base + 0xB697] = 0x09;
+    }
+
+    applyAmmoCheat(heap, base) {
+        // Rapid Fire / Zero Weapon Attack Cooldown (0xFFB314, 0xFFB326)
+        heap[base + 0xB314] = 0x00;
+        heap[base + 0xB326] = 0x00;
+
+        // Global firearm ammo tracking (0xFF0F61, 0xFF0F63)
+        heap[base + 0x0F61] = 0x63;
+        heap[base + 0x0F63] = 0x63;
+
+        // Player 1 Weapon Ammo Slots (0xFFB26C, 0xFFB2CE, 0xFFB368): Lock to 99 rounds
+        heap[base + 0xB26C] = 0x63;
+        heap[base + 0xB26D] = 0x00;
+        heap[base + 0xB2CE] = 0x63;
+        heap[base + 0xB368] = 0x63;
+
+        // Player 2 & 3 Weapon Ammo Slots
+        heap[base + 0xB46C] = 0x63;
+        heap[base + 0xB4CE] = 0x63;
+        heap[base + 0xB66C] = 0x63;
+        heap[base + 0xB6CE] = 0x63;
+
+        // Player 1 Held Weapon Entity: P1 stores held weapon pointer at offset 0xB4
+        const b4 = heap[base + 0xB2B4];
+        const b5 = heap[base + 0xB2B5];
+        const heldOffset = (b4 << 8) | b5;
+        if (heldOffset >= 0x8000 && heldOffset <= 0xF000) {
+            heap[base + (heldOffset & 0xFFFF) + 0x6C] = 0x63;
+            heap[base + (heldOffset & 0xFFFF) + 0x6D] = 0x00;
+        }
+
+        // Active Object Table Scan: Lock any equipped firearm entity ammo to 99
+        for (let slot = 0xB800; slot <= 0xE000; slot += 0x100) {
+            const curAmmo = heap[base + slot + 0x6C];
+            if (curAmmo > 0 && curAmmo < 100) {
+                heap[base + slot + 0x6C] = 0x63;
+            }
+        }
+    }
+
     toggleCheat(type) {
         if (window.arcadeSFX) window.arcadeSFX.playClick();
 
@@ -647,10 +743,21 @@ class DinoArcadeApp {
                 this.elements.hudStatusImmortal.textContent = active ? 'ON' : 'OFF';
             }
 
-            // Apply via RetroArch/FBNeo WASM Cheat Engine (0xFFB2E1 = 100 HP)
-            this.applyCheatCode(0, active, 'FFB2E1+64');
+            // Immediately poke or clear invincibility
+            const mod = window.EJS_emulator?.Module;
+            const base = this.getRamBase();
+            if (mod && mod.HEAPU8 && base !== null) {
+                if (active) {
+                    this.applyImmortalCheat(mod.HEAPU8, base);
+                } else {
+                    // Reset invincibility flag to allow normal damage
+                    mod.HEAPU8[base + 0xB274] = 0x00;
+                    mod.HEAPU8[base + 0xB474] = 0x00;
+                    mod.HEAPU8[base + 0xB674] = 0x00;
+                }
+            }
 
-            this.showToast(active ? '🛡️ Immortal Mode: ACTIVE (Player 1 Cannot Die)' : '🛡️ Immortal Mode: OFF', active ? 'success' : 'info');
+            this.showToast(active ? '🛡️ Immortal Mode: ON (Invincible + Full Health + 9 Lives)' : '🛡️ Immortal Mode: OFF (Normal Damage Restored)', active ? 'success' : 'info');
         } else if (type === 'ammo') {
             this.cheats.ammo = !this.cheats.ammo;
             const active = this.cheats.ammo;
@@ -662,43 +769,84 @@ class DinoArcadeApp {
                 this.elements.hudStatusAmmo.textContent = active ? 'ON' : 'OFF';
             }
 
-            // Apply via RetroArch/FBNeo WASM Cheat Engine (0xFFB6CE = 99 Bullets)
-            this.applyCheatCode(1, active, 'FFB6CE+63');
+            // Immediately apply ammo cheat
+            const mod = window.EJS_emulator?.Module;
+            const base = this.getRamBase();
+            if (mod && mod.HEAPU8 && base !== null && active) {
+                this.applyAmmoCheat(mod.HEAPU8, base);
+            }
 
-            this.showToast(active ? '🔫 Unlimited Ammo: ACTIVE (All Weapons Have 99 Ammo)' : '🔫 Unlimited Ammo: OFF', active ? 'success' : 'info');
+            this.showToast(active ? '🔫 Unlimited Ammo: ON (All Weapons Have 99 Ammo + Rapid Fire)' : '🔫 Unlimited Ammo: OFF (Normal Ammo Restored)', active ? 'success' : 'info');
         }
 
         this.startCheatKeeperLoop();
     }
 
-    applyCheatCode(index, enabled, code) {
-        if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.setCheat === 'function') {
-            try {
-                window.EJS_emulator.gameManager.setCheat(index, enabled ? 1 : 0, code);
-            } catch (_) {}
-        }
-    }
-
     startCheatKeeperLoop() {
-        if (this.cheatInterval) return;
+        if (this.cheatRunning) return;
+        this.cheatRunning = true;
 
-        // Reinforce cheat memory values during gameplay every 250ms
-        this.cheatInterval = setInterval(() => {
+        const loop = () => {
             if (!this.cheats.immortal && !this.cheats.ammo) {
-                clearInterval(this.cheatInterval);
-                this.cheatInterval = null;
+                this.cheatRunning = false;
+                if (this.cheatRafId) {
+                    cancelAnimationFrame(this.cheatRafId);
+                    this.cheatRafId = null;
+                }
+                if (this.cheatInterval) {
+                    clearInterval(this.cheatInterval);
+                    this.cheatInterval = null;
+                }
                 return;
             }
-            this.applyActiveCheats();
-        }, 250);
+
+            const mod = window.EJS_emulator?.Module;
+            const base = this.getRamBase();
+            if (mod && mod.HEAPU8 && base !== null) {
+                if (this.cheats.immortal) {
+                    this.applyImmortalCheat(mod.HEAPU8, base);
+                }
+                if (this.cheats.ammo) {
+                    this.applyAmmoCheat(mod.HEAPU8, base);
+                }
+            }
+
+            this.cheatRafId = requestAnimationFrame(loop);
+        };
+
+        this.cheatRafId = requestAnimationFrame(loop);
+
+        // Fallback interval (runs every 60ms) to preserve cheats even if rAF throttles on blur
+        if (!this.cheatInterval) {
+            this.cheatInterval = setInterval(() => {
+                if (!this.cheats.immortal && !this.cheats.ammo) {
+                    clearInterval(this.cheatInterval);
+                    this.cheatInterval = null;
+                    return;
+                }
+                const mod = window.EJS_emulator?.Module;
+                const base = this.getRamBase();
+                if (mod && mod.HEAPU8 && base !== null) {
+                    if (this.cheats.immortal) this.applyImmortalCheat(mod.HEAPU8, base);
+                    if (this.cheats.ammo) this.applyAmmoCheat(mod.HEAPU8, base);
+                }
+            }, 60);
+        }
     }
 
     applyActiveCheats() {
-        if (this.cheats.immortal) {
-            this.applyCheatCode(0, true, 'FFB2E1+64');
+        const mod = window.EJS_emulator?.Module;
+        const base = this.getRamBase();
+        if (mod && mod.HEAPU8 && base !== null) {
+            if (this.cheats.immortal) {
+                this.applyImmortalCheat(mod.HEAPU8, base);
+            }
+            if (this.cheats.ammo) {
+                this.applyAmmoCheat(mod.HEAPU8, base);
+            }
         }
-        if (this.cheats.ammo) {
-            this.applyCheatCode(1, true, 'FFB6CE+63');
+        if (this.cheats.immortal || this.cheats.ammo) {
+            this.startCheatKeeperLoop();
         }
     }
 
