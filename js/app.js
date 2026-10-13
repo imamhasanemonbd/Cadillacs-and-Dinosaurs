@@ -57,6 +57,7 @@ class DinoArcadeApp {
             this.setViewMode('fullscreen');
         }
 
+        window.setupGameFullscreen?.();
         this.startGame();
     }
 
@@ -464,30 +465,7 @@ class DinoArcadeApp {
         if (this.gameStarted) return;
         this.gameStarted = true;
 
-        this.downloadRomAndLaunch();
-    }
-
-    downloadRomAndLaunch() {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', this.romUrl, true);
-        xhr.responseType = 'blob';
-
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
-                const blobUrl = URL.createObjectURL(xhr.response);
-                this.launchEmulator(blobUrl);
-            } else {
-                console.warn('[DINO] Direct XHR status', xhr.status, 'launching with direct url');
-                this.launchEmulator(this.romUrl);
-            }
-        };
-
-        xhr.onerror = () => {
-            console.warn('[DINO] XHR network error, launching with direct url');
-            this.launchEmulator(this.romUrl);
-        };
-
-        xhr.send();
+        this.launchEmulator(this.romUrl);
     }
 
     launchEmulator(romUrlOrBlob) {
@@ -539,7 +517,6 @@ class DinoArcadeApp {
             }
         ];
         window.EJS_startOnLoaded = true;
-        window.EJS_DEBUG_XX = true; // Bypass broken HEAD request cache check
         window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
         window.EJS_gameUrl = romUrlOrBlob;
         window.EJS_fullscreenOnLoaded = false;
@@ -554,33 +531,11 @@ class DinoArcadeApp {
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
         window.EJS_onSaveState = () => this.showToast('💾 State Saved Successfully', 'info');
 
-        // Watch for canvas mounting to instantly dismiss front card overlay
-        this.setupEmulatorProgressWatcher();
-
         // Dynamically load EmulatorJS loader script
         const script = document.createElement('script');
         script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
         script.async = true;
         document.body.appendChild(script);
-    }
-
-    setupEmulatorProgressWatcher() {
-        const viewport = this.elements.gameViewport;
-        if (!viewport) return;
-
-        const checkReady = () => {
-            const canvas = viewport.querySelector('canvas');
-            if ((canvas || (window.EJS_emulator && window.EJS_emulator.started)) && !this.gameReadyDismissed) {
-                this.dismissStartOverlay();
-            }
-        };
-
-        try {
-            this.progressObserver = new MutationObserver(checkReady);
-            this.progressObserver.observe(viewport, { childList: true, subtree: true });
-        } catch (_) {}
-
-        this.startupCheckInterval = setInterval(checkReady, 80);
     }
 
     dismissStartOverlay() {
