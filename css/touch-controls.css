@@ -281,44 +281,27 @@
     }
 }
 
-/* Mobile joystick and landscape fallback for browsers without orientation locking. */
-.touch-joystick {
-    width: clamp(110px, 28dvh, 160px);
-    height: clamp(110px, 28dvh, 160px);
-    position: relative;
-    flex-shrink: 0;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.25);
-    background: radial-gradient(circle, #263345bb, #07090ecc);
-    box-shadow: inset 0 0 20px #0008;
-    pointer-events: auto;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
+/* The outer frame rotates the whole emulator, including its native controls. */
+#mobile-game-frame {
+    position: fixed;
+    border: 0;
+    display: block;
+    transform-origin: top left;
+    background: #000;
 }
-.joystick-knob {
-    position: absolute;
-    width: 42%;
-    height: 42%;
-    top: 29%;
-    left: 29%;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #b7cbdc, #43566b);
-    box-shadow: 0 4px 12px #0009;
-    pointer-events: none;
+.mobile-game-content #app-container {
+    width: 100%;
+    height: 100dvh;
 }
-@media (orientation: portrait) {
-    .mobile-game #app-container {
-        position: fixed;
-        width: 100dvh;
-        height: 100dvw;
-        top: 0;
-        left: 100%;
-        transform: rotate(90deg);
-        transform-origin: top left;
-    }
-    .mobile-game .touch-joystick {
-        width: clamp(110px, 28dvw, 145px);
-        height: clamp(110px, 28dvw, 145px);
-    }
+.mobile-game-content #arcade-viewport-container.edge-to-edge .game-screen-wrapper {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    aspect-ratio: auto;
+    box-shadow: none;
+}
+.mobile-game-content #game-viewport {
+    width: 100%;
+    height: 100%;
 }

@@ -44,7 +44,8 @@ class DinoArcadeApp {
 
         // Keep mobile landscape handling; EmulatorJS renders the touch controls.
         if (window.virtualArcadeControls &&
-            ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+            ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
+            !new URLSearchParams(location.search).has('landscape-frame')) {
             window.virtualArcadeControls.setupLandscape();
         }
 
@@ -1096,6 +1097,38 @@ class DinoArcadeApp {
 
 // Instantiate on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
+    const touchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (touchDevice && !new URLSearchParams(location.search).has('landscape-frame')) {
+        // An iframe gives native controls landscape-local touch coordinates even
+        // when Safari displays the entire frame rotated in a portrait viewport.
+        const frame = document.createElement('iframe');
+        const url = new URL(location.href);
+        url.searchParams.set('landscape-frame', '1');
+        frame.id = 'mobile-game-frame';
+        frame.title = 'Cadillacs and Dinosaurs';
+        frame.allow = 'autoplay; fullscreen; gamepad';
+        frame.src = url.href;
+        document.getElementById('app-container').replaceWith(frame);
+        const fit = () => {
+            const viewport = window.visualViewport;
+            const width = viewport ? viewport.width : window.innerWidth;
+            const height = viewport ? viewport.height : window.innerHeight;
+            const rotated = height > width;
+            Object.assign(frame.style, {
+                width: `${rotated ? height : width}px`,
+                height: `${rotated ? width : height}px`,
+                left: `${(viewport?.offsetLeft || 0) + (rotated ? width : 0)}px`,
+                top: `${viewport?.offsetTop || 0}px`,
+                transform: rotated ? 'rotate(90deg)' : 'none'
+            });
+        };
+        fit();
+        window.addEventListener('resize', fit);
+        window.visualViewport?.addEventListener('resize', fit);
+        window.visualViewport?.addEventListener('scroll', fit);
+        return;
+    }
+    if (touchDevice) document.documentElement.classList.add('mobile-game-content');
     window.dinoApp = new DinoArcadeApp();
     window.dinoApp.init();
 });
