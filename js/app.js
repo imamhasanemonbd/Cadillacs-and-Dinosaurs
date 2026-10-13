@@ -51,6 +51,10 @@ class DinoArcadeApp {
             loadingProgress: document.getElementById('loading-progress-bar'),
             btnStart: document.getElementById('btn-start-game'),
             btnInsertCoin: document.getElementById('btn-insert-coin'),
+            btnStartP1: document.getElementById('btn-start-p1'),
+            liveHud: document.getElementById('arcade-live-hud'),
+            hudBtnCoin: document.getElementById('hud-btn-coin'),
+            hudBtnStart: document.getElementById('hud-btn-start'),
             creditsDisplay: document.getElementById('credits-counter'),
             btnFullscreen: document.getElementById('btn-toggle-fullscreen'),
             btnCrt: document.getElementById('btn-toggle-crt'),
@@ -70,14 +74,28 @@ class DinoArcadeApp {
     }
 
     bindUIEvents() {
-        // Start Game
+        // Start Game from initial hero splash
         this.elements.btnStart?.addEventListener('click', () => {
             this.startGame();
         });
 
-        // Insert Coin
+        // Insert Coin toolbar button
         this.elements.btnInsertCoin?.addEventListener('click', () => {
             this.insertCoin();
+        });
+
+        // 1P Start toolbar button
+        this.elements.btnStartP1?.addEventListener('click', () => {
+            this.pressStart();
+        });
+
+        // Live In-Game Floating HUD Buttons
+        this.elements.hudBtnCoin?.addEventListener('click', () => {
+            this.insertCoin();
+        });
+
+        this.elements.hudBtnStart?.addEventListener('click', () => {
+            this.pressStart();
         });
 
         // Fullscreen Toggle
@@ -157,10 +175,15 @@ class DinoArcadeApp {
             // Prevent interference if user is in an input field
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-            if (e.key === '5' || e.key === 'c' || e.key === 'C') {
-                // Insert Coin
+            // Coin keys: 5, c, C, v, V
+            if (e.key === '5' || e.code === 'Digit5' || e.key === 'c' || e.key === 'C' || e.key === 'v' || e.key === 'V') {
                 this.insertCoin();
-            } else if (e.key === 'f' || e.key === 'F') {
+            } 
+            // 1P Start keys: 1, Digit1, Enter
+            else if (e.key === '1' || e.code === 'Digit1' || e.key === 'Enter') {
+                this.pressStart();
+            } 
+            else if (e.key === 'f' || e.key === 'F') {
                 if (!e.ctrlKey && !e.metaKey) {
                     this.toggleFullscreen();
                 }
@@ -168,6 +191,16 @@ class DinoArcadeApp {
                 document.querySelectorAll('.arcade-modal').forEach(m => m.classList.remove('open'));
             }
         });
+    }
+
+    focusGameCanvas() {
+        const viewport = document.getElementById('game-viewport');
+        const canvas = viewport?.querySelector('canvas');
+        if (canvas) {
+            canvas.focus();
+        } else if (viewport) {
+            viewport.focus();
+        }
     }
 
     insertCoin() {
@@ -186,13 +219,78 @@ class DinoArcadeApp {
             setTimeout(() => this.elements.btnInsertCoin.classList.remove('coin-inserted'), 300);
         }
 
-        // If game is running, dispatch arcade coin key to emulator
+        // Direct C-level WASM injection into RetroArch/FBNeo core (Button 2 is INSERT COIN!)
+        if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === 'function') {
+            try {
+                window.EJS_emulator.gameManager.simulateInput(0, 2, 1);
+                setTimeout(() => {
+                    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+                        window.EJS_emulator.gameManager.simulateInput(0, 2, 0);
+                    }
+                }, 150);
+            } catch (_) {}
+        }
+
+        // Dispatch synthetic coin key to emulator
         if (this.gameStarted && window.virtualArcadeControls) {
             window.virtualArcadeControls.press('coin');
             setTimeout(() => window.virtualArcadeControls.release('coin'), 120);
-        } else if (!this.gameStarted) {
-            this.showToast(`🪙 Coin Inserted! (${this.credits} Credit${this.credits > 1 ? 's' : ''}) - Tap START GAME`, 'success');
         }
+
+        // Focus canvas
+        this.focusGameCanvas();
+
+        // Make 1P Start button pulse inviting the player to start!
+        if (this.elements.btnStartP1) {
+            this.elements.btnStartP1.classList.add('ready-to-start');
+        }
+        if (this.elements.hudBtnStart) {
+            this.elements.hudBtnStart.classList.add('pulse');
+        }
+
+        this.showToast(`🪙 Coin Accepted! (${this.credits} Credit${this.credits > 1 ? 's' : ''}) • Click ▶ 1P START or press Enter / 1`, 'success');
+    }
+
+    pressStart() {
+        if (!this.gameStarted) {
+            this.startGame();
+            return;
+        }
+
+        if (window.arcadeSFX) {
+            window.arcadeSFX.playStartSound();
+        }
+
+        // Direct C-level WASM injection into RetroArch/FBNeo core (Button 3 is 1P START!)
+        if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === 'function') {
+            try {
+                window.EJS_emulator.gameManager.simulateInput(0, 3, 1);
+                setTimeout(() => {
+                    if (window.EJS_emulator && window.EJS_emulator.gameManager) {
+                        window.EJS_emulator.gameManager.simulateInput(0, 3, 0);
+                    }
+                }, 150);
+            } catch (_) {}
+        }
+
+        // Also dispatch synthetic keys Enter and 1
+        if (window.virtualArcadeControls) {
+            window.virtualArcadeControls.press('start');
+            setTimeout(() => window.virtualArcadeControls.release('start'), 150);
+        }
+
+        // Focus canvas so next keys (Left/Right, Attack) go to the game
+        this.focusGameCanvas();
+
+        // Reset pulsing state
+        if (this.elements.btnStartP1) {
+            this.elements.btnStartP1.classList.remove('ready-to-start');
+        }
+        if (this.elements.hudBtnStart) {
+            this.elements.hudBtnStart.classList.remove('pulse');
+        }
+
+        this.showToast('🚀 1P START Triggered! Pick your fighter with ← / → and press Attack (Z / J)!', 'success');
     }
 
     startGame() {
@@ -221,6 +319,21 @@ class DinoArcadeApp {
 
         this.setLoadingProgress(35, 'Fetching Capcom CPS-1.5 ROM (dino.zip)...');
 
+        // Configure Default Controls for Arcade
+        window.EJS_defaultControls = {
+            0: {
+                0: { "value": "x", "value2": "BUTTON_2" },  // B: Jump
+                1: { "value": "s", "value2": "BUTTON_4" },  // Y: Special
+                2: { "value": "5", "value2": "SELECT" },    // SELECT / COIN: 5
+                3: { "value": "1", "value2": "START" },     // START: 1
+                4: { "value": "up arrow", "value2": "DPAD_UP" },
+                5: { "value": "down arrow", "value2": "DPAD_DOWN" },
+                6: { "value": "left arrow", "value2": "DPAD_LEFT" },
+                7: { "value": "right arrow", "value2": "DPAD_RIGHT" },
+                8: { "value": "z", "value2": "BUTTON_1" }   // A: Attack
+            }
+        };
+
         // Configure EmulatorJS globals
         window.EJS_player = '#game-viewport';
         window.EJS_core = 'arcade';
@@ -240,7 +353,11 @@ class DinoArcadeApp {
                 if (this.elements.loadingOverlay) {
                     this.elements.loadingOverlay.classList.add('hidden');
                 }
-                this.showToast('🦖 Cadillacs & Dinosaurs Running at 60 FPS! Press 5 to Insert Coin, 1 to Start', 'success');
+                if (this.elements.liveHud) {
+                    this.elements.liveHud.classList.remove('hidden');
+                }
+                this.focusGameCanvas();
+                this.showToast('🦖 Game Ready! Click 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
             }, 400);
         };
 

@@ -49,10 +49,16 @@
         <!-- Toolbar Actions -->
         <div class="toolbar-section">
             <!-- Insert Coin -->
-            <button id="btn-insert-coin" class="arcade-tool-btn coin-btn" title="Insert Coin (Key: 5 or C)">
+            <button id="btn-insert-coin" class="arcade-tool-btn coin-btn" title="Insert Coin (Key: 5, C, or V)">
                 <span class="btn-icon">🪙</span>
                 <span class="btn-text">Coin</span>
                 <span id="credits-counter" class="credit-badge">00</span>
+            </button>
+
+            <!-- 1P Start -->
+            <button id="btn-start-p1" class="arcade-tool-btn start-p1-btn" title="Start 1P Game (Key: 1 or Enter)">
+                <span class="btn-icon">▶</span>
+                <span class="btn-text">1P Start</span>
             </button>
 
             <!-- CRT Toggle -->
@@ -221,6 +227,20 @@
                         <span class="btn-letter">SP</span>
                         <span class="btn-label">A+B</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- In-Game Floating Quick Action HUD -->
+            <div id="arcade-live-hud" class="hidden">
+                <button id="hud-btn-coin" class="hud-pill-btn hud-coin" title="Insert Coin (Key: 5 or C)">
+                    <span>🪙</span> INSERT COIN <span class="hud-key-hint">(5)</span>
+                </button>
+                <button id="hud-btn-start" class="hud-pill-btn hud-start" title="Start Player 1 (Key: 1 or Enter)">
+                    <span>▶</span> 1P START <span class="hud-key-hint">(1 / Enter)</span>
+                </button>
+                <div class="hud-info-guide">
+                    <span>Fighter: <strong>← / →</strong></span>
+                    <span>Pick: <strong>Z / J</strong></span>
                 </div>
             </div>
         </div>

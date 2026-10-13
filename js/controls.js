@@ -10,12 +10,6 @@ class VirtualArcadeControls {
         this.activeKeys = new Set();
         
         // Key mapping to standard EmulatorJS / RetroArch arcade keys
-        // Player 1:
-        // Coin: Digit5 / KeyC
-        // Start: Digit1 / Enter
-        // Up/Down/Left/Right: ArrowUp/Down/Left/Right or KeyW/S/A/D
-        // Button A (Attack): KeyZ / KeyJ
-        // Button B (Jump): KeyX / KeyK
         this.keyMap = {
             up: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
             down: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
@@ -30,7 +24,21 @@ class VirtualArcadeControls {
         // Also dispatch alternate keys for maximum compatibility
         this.altKeyMap = {
             btnA: { key: "j", code: "KeyJ", keyCode: 74 },
-            btnB: { key: "k", code: "KeyK", keyCode: 75 }
+            btnB: { key: "k", code: "KeyK", keyCode: 75 },
+            coin: { key: "v", code: "KeyV", keyCode: 86 },
+            start: { key: "Enter", code: "Enter", keyCode: 13 }
+        };
+
+        // Direct FBNeo / RetroArch WASM core button index mapping
+        this.simulateIndexMap = {
+            btnB: 0,   // Jump
+            btnA: 8,   // Attack
+            coin: 2,   // Insert Coin
+            start: 3,  // 1P Start
+            up: 4,     // Up
+            down: 5,   // Down
+            left: 6,   // Left
+            right: 7   // Right
         };
     }
 
@@ -75,7 +83,12 @@ class VirtualArcadeControls {
     }
 
     dispatchKeyEvent(type, mapping) {
-        const target = document.querySelector("#game-viewport canvas") || window;
+        const targets = [
+            document.querySelector("#game-viewport canvas"),
+            document.querySelector("#game-viewport"),
+            window,
+            document
+        ];
         
         const eventInit = {
             key: mapping.key,
@@ -88,8 +101,11 @@ class VirtualArcadeControls {
         };
 
         const ev = new KeyboardEvent(type, eventInit);
-        target.dispatchEvent(ev);
-        window.dispatchEvent(ev);
+        targets.forEach(t => {
+            if (t) {
+                try { t.dispatchEvent(ev); } catch (_) {}
+            }
+        });
     }
 
     press(action) {
@@ -102,6 +118,14 @@ class VirtualArcadeControls {
             this.press("btnA");
             this.press("btnB");
             return;
+        }
+
+        // Direct C-level WASM injection
+        const simIdx = this.simulateIndexMap[action];
+        if (simIdx !== undefined && window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === "function") {
+            try {
+                window.EJS_emulator.gameManager.simulateInput(0, simIdx, 1);
+            } catch (_) {}
         }
 
         const map = this.keyMap[action];
@@ -122,6 +146,14 @@ class VirtualArcadeControls {
             this.release("btnA");
             this.release("btnB");
             return;
+        }
+
+        // Direct C-level WASM injection release
+        const simIdx = this.simulateIndexMap[action];
+        if (simIdx !== undefined && window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === "function") {
+            try {
+                window.EJS_emulator.gameManager.simulateInput(0, simIdx, 0);
+            } catch (_) {}
         }
 
         const map = this.keyMap[action];
