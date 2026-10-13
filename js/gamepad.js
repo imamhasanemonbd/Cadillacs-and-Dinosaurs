@@ -83,27 +83,8 @@ class ArcadeGamepadManager {
         }
     }
 
-    showToast(message, type = "info") {
-        const toast = document.createElement("div");
-        toast.className = `arcade-toast toast-${type}`;
-        toast.textContent = message;
-        
-        let container = document.getElementById("toast-container");
-        if (!container) {
-            container = document.createElement("div");
-            container.id = "toast-container";
-            document.body.appendChild(container);
-        }
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add("show");
-        }, 10);
-
-        setTimeout(() => {
-            toast.classList.remove("show");
-            setTimeout(() => toast.remove(), 400);
-        }, 3200);
+    showToast() {
+        // Popup notifications are disabled across the arcade.
     }
 }
 
