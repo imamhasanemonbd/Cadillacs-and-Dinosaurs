@@ -669,62 +669,75 @@ class DinoArcadeApp {
     }
 
     applyImmortalCheat(heap, base) {
-        // Player 1 Health (0xFFB2E0 / 0xFFB2E2): Lock to 100 HP (0x64 full health bar)
+        // Player 1 Health (0xFFB2E0): Lock to 100 HP (0x64 full health bar)
         heap[base + 0xB2E0] = 0x64;
-        heap[base + 0xB2E2] = 0x64;
-        // Player 1 Invincibility State (0xFFB274): 0x02 = fully impervious flashing state
-        heap[base + 0xB274] = 0x02;
         // Player 1 Lives (0xFFB297): Lock to 9 lives
         heap[base + 0xB297] = 0x09;
 
-        // Player 2 Health & Invincibility (if active)
-        heap[base + 0xB4E0] = 0x64;
-        heap[base + 0xB4E2] = 0x64;
-        heap[base + 0xB474] = 0x02;
-        heap[base + 0xB497] = 0x09;
-
-        // Player 3 Health & Invincibility (if active)
-        heap[base + 0xB6E0] = 0x64;
-        heap[base + 0xB6E2] = 0x64;
-        heap[base + 0xB674] = 0x02;
-        heap[base + 0xB697] = 0x09;
+        // Only protect Player 2 / Player 3 if they have actively joined (health > 0)
+        if (heap[base + 0xB4E0] > 0) {
+            heap[base + 0xB4E0] = 0x64;
+            heap[base + 0xB497] = 0x09;
+        }
+        if (heap[base + 0xB6E0] > 0) {
+            heap[base + 0xB6E0] = 0x64;
+            heap[base + 0xB697] = 0x09;
+        }
     }
 
-    applyAmmoCheat(heap, base) {
-        // Rapid Fire / Zero Weapon Attack Cooldown (0xFFB314, 0xFFB326)
-        heap[base + 0xB314] = 0x00;
-        heap[base + 0xB326] = 0x00;
+    getAmmoPatchOffset(heap) {
+        if (this._ammoPatchOffset && this._ammoPatchOffset + 8 < heap.length) {
+            return this._ammoPatchOffset;
+        }
+        const defaultOffset = 0x64746be;
+        const target = [0x6a, 0x36, 0xb4, 0x00];
 
-        // Global firearm ammo tracking (0xFF0F61, 0xFF0F63)
-        heap[base + 0x0F61] = 0x63;
-        heap[base + 0x0F63] = 0x63;
-
-        // Player 1 Weapon Ammo Slots (0xFFB26C, 0xFFB2CE, 0xFFB368): Lock to 99 rounds
-        heap[base + 0xB26C] = 0x63;
-        heap[base + 0xB26D] = 0x00;
-        heap[base + 0xB2CE] = 0x63;
-        heap[base + 0xB368] = 0x63;
-
-        // Player 2 & 3 Weapon Ammo Slots
-        heap[base + 0xB46C] = 0x63;
-        heap[base + 0xB4CE] = 0x63;
-        heap[base + 0xB66C] = 0x63;
-        heap[base + 0xB6CE] = 0x63;
-
-        // Player 1 Held Weapon Entity: P1 stores held weapon pointer at offset 0xB4
-        const b4 = heap[base + 0xB2B4];
-        const b5 = heap[base + 0xB2B5];
-        const heldOffset = (b4 << 8) | b5;
-        if (heldOffset >= 0x8000 && heldOffset <= 0xF000) {
-            heap[base + (heldOffset & 0xFFFF) + 0x6C] = 0x63;
-            heap[base + (heldOffset & 0xFFFF) + 0x6D] = 0x00;
+        // Fast check default offset
+        if (defaultOffset + 8 < heap.length) {
+            if (heap[defaultOffset] === target[0] && heap[defaultOffset + 1] === target[1] &&
+                heap[defaultOffset + 2] === target[2] && heap[defaultOffset + 3] === target[3]) {
+                this._ammoPatchOffset = defaultOffset;
+                return defaultOffset;
+            }
         }
 
-        // Active Object Table Scan: Lock any equipped firearm entity ammo to 99
-        for (let slot = 0xB800; slot <= 0xE000; slot += 0x100) {
-            const curAmmo = heap[base + slot + 0x6C];
-            if (curAmmo > 0 && curAmmo < 100) {
-                heap[base + slot + 0x6C] = 0x63;
+        // Fast scan in 68000 ROM range (0x6000000 - 0x7000000)
+        const start = Math.max(0, 0x6000000);
+        const end = Math.min(heap.length - 8, 0x7000000);
+        for (let i = start; i < end; i += 2) {
+            if (heap[i] === target[0] && heap[i + 1] === target[1] && heap[i + 2] === target[2] && heap[i + 3] === target[3]) {
+                this._ammoPatchOffset = i;
+                return i;
+            }
+        }
+        return null;
+    }
+
+    setUnlimitedAmmo(enabled) {
+        const mod = window.EJS_emulator?.Module;
+        if (!mod || !mod.HEAPU8) return;
+        const heap = mod.HEAPU8;
+        const patchAddr = this.getAmmoPatchOffset(heap);
+        if (!patchAddr) return;
+
+        if (enabled) {
+            // In-place patch at 0x0239DE: Keep original 'move.w $B4(A2), D3' (4 bytes),
+            // and replace 'move.w $6C(A3), D0' (4 bytes) with 'moveq #$63, D0; nop' (4 bytes).
+            // Big-endian: 70 63 4E 71 -> Byte-swapped for 16-bit wasm: 63 70 71 4E
+            heap[patchAddr] = 0x6a;
+            heap[patchAddr + 1] = 0x36;
+            heap[patchAddr + 2] = 0xb4;
+            heap[patchAddr + 3] = 0x00;
+            heap[patchAddr + 4] = 0x63;
+            heap[patchAddr + 5] = 0x70;
+            heap[patchAddr + 6] = 0x71;
+            heap[patchAddr + 7] = 0x4e;
+        } else {
+            // Restore original 8 bytes at 0x0239DE:
+            // move.w $B4(A2), D3; move.w $6C(A3), D0
+            const orig8 = [0x6a, 0x36, 0xb4, 0x00, 0x2b, 0x30, 0x6c, 0x00];
+            for (let i = 0; i < orig8.length; i++) {
+                heap[patchAddr + i] = orig8[i];
             }
         }
     }
@@ -743,21 +756,14 @@ class DinoArcadeApp {
                 this.elements.hudStatusImmortal.textContent = active ? 'ON' : 'OFF';
             }
 
-            // Immediately poke or clear invincibility
+            // Immediately poke health if active
             const mod = window.EJS_emulator?.Module;
             const base = this.getRamBase();
-            if (mod && mod.HEAPU8 && base !== null) {
-                if (active) {
-                    this.applyImmortalCheat(mod.HEAPU8, base);
-                } else {
-                    // Reset invincibility flag to allow normal damage
-                    mod.HEAPU8[base + 0xB274] = 0x00;
-                    mod.HEAPU8[base + 0xB474] = 0x00;
-                    mod.HEAPU8[base + 0xB674] = 0x00;
-                }
+            if (mod && mod.HEAPU8 && base !== null && active) {
+                this.applyImmortalCheat(mod.HEAPU8, base);
             }
 
-            this.showToast(active ? '🛡️ Immortal Mode: ON (Invincible + Full Health + 9 Lives)' : '🛡️ Immortal Mode: OFF (Normal Damage Restored)', active ? 'success' : 'info');
+            this.showToast(active ? '🛡️ Immortal Mode: ON (Infinite Health + 9 Lives)' : '🛡️ Immortal Mode: OFF', active ? 'success' : 'info');
         } else if (type === 'ammo') {
             this.cheats.ammo = !this.cheats.ammo;
             const active = this.cheats.ammo;
@@ -769,14 +775,10 @@ class DinoArcadeApp {
                 this.elements.hudStatusAmmo.textContent = active ? 'ON' : 'OFF';
             }
 
-            // Immediately apply ammo cheat
-            const mod = window.EJS_emulator?.Module;
-            const base = this.getRamBase();
-            if (mod && mod.HEAPU8 && base !== null && active) {
-                this.applyAmmoCheat(mod.HEAPU8, base);
-            }
+            // Apply/restore ASM cheat
+            this.setUnlimitedAmmo(active);
 
-            this.showToast(active ? '🔫 Unlimited Ammo: ON (All Weapons Have 99 Ammo + Rapid Fire)' : '🔫 Unlimited Ammo: OFF (Normal Ammo Restored)', active ? 'success' : 'info');
+            this.showToast(active ? '🔫 Unlimited Ammo: ON (All Guns Have Infinite 99 Ammo)' : '🔫 Unlimited Ammo: OFF', active ? 'success' : 'info');
         }
 
         this.startCheatKeeperLoop();
@@ -787,7 +789,7 @@ class DinoArcadeApp {
         this.cheatRunning = true;
 
         const loop = () => {
-            if (!this.cheats.immortal && !this.cheats.ammo) {
+            if (!this.cheats.immortal) {
                 this.cheatRunning = false;
                 if (this.cheatRafId) {
                     cancelAnimationFrame(this.cheatRafId);
@@ -803,12 +805,7 @@ class DinoArcadeApp {
             const mod = window.EJS_emulator?.Module;
             const base = this.getRamBase();
             if (mod && mod.HEAPU8 && base !== null) {
-                if (this.cheats.immortal) {
-                    this.applyImmortalCheat(mod.HEAPU8, base);
-                }
-                if (this.cheats.ammo) {
-                    this.applyAmmoCheat(mod.HEAPU8, base);
-                }
+                this.applyImmortalCheat(mod.HEAPU8, base);
             }
 
             this.cheatRafId = requestAnimationFrame(loop);
@@ -816,10 +813,10 @@ class DinoArcadeApp {
 
         this.cheatRafId = requestAnimationFrame(loop);
 
-        // Fallback interval (runs every 60ms) to preserve cheats even if rAF throttles on blur
+        // Fallback interval (runs every 60ms) to preserve immortal state if tab blurs
         if (!this.cheatInterval) {
             this.cheatInterval = setInterval(() => {
-                if (!this.cheats.immortal && !this.cheats.ammo) {
+                if (!this.cheats.immortal) {
                     clearInterval(this.cheatInterval);
                     this.cheatInterval = null;
                     return;
@@ -827,8 +824,7 @@ class DinoArcadeApp {
                 const mod = window.EJS_emulator?.Module;
                 const base = this.getRamBase();
                 if (mod && mod.HEAPU8 && base !== null) {
-                    if (this.cheats.immortal) this.applyImmortalCheat(mod.HEAPU8, base);
-                    if (this.cheats.ammo) this.applyAmmoCheat(mod.HEAPU8, base);
+                    this.applyImmortalCheat(mod.HEAPU8, base);
                 }
             }, 60);
         }
@@ -837,15 +833,15 @@ class DinoArcadeApp {
     applyActiveCheats() {
         const mod = window.EJS_emulator?.Module;
         const base = this.getRamBase();
-        if (mod && mod.HEAPU8 && base !== null) {
-            if (this.cheats.immortal) {
+        if (mod && mod.HEAPU8) {
+            if (this.cheats.immortal && base !== null) {
                 this.applyImmortalCheat(mod.HEAPU8, base);
             }
             if (this.cheats.ammo) {
-                this.applyAmmoCheat(mod.HEAPU8, base);
+                this.setUnlimitedAmmo(true);
             }
         }
-        if (this.cheats.immortal || this.cheats.ammo) {
+        if (this.cheats.immortal) {
             this.startCheatKeeperLoop();
         }
     }
