@@ -1,0 +1,24 @@
+{
+  "name": "cadillacs-and-dinosaurs-web",
+  "version": "1.0.0",
+  "description": "Play Capcom's classic Cadillacs and Dinosaurs arcade game directly in any browser on any device at 60 FPS.",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve -l 3000 .",
+    "dev": "npx serve -l 3000 .",
+    "serve:py": "python3 -m http.server 3000"
+  },
+  "keywords": [
+    "cadillacs-and-dinosaurs",
+    "arcade",
+    "emulator",
+    "webassembly",
+    "capcom",
+    "cps1",
+    "cps1.5",
+    "retro-gaming",
+    "fbneo"
+  ],
+  "author": "Imam Hasan",
+  "license": "MIT"
+}

@@ -1,0 +1,935 @@
+/* ==========================================================================
+   Cadillacs and Dinosaurs - Retro Arcade Design System & Core Stylesheet
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Outfit:wght@300;400;600;700&family=Press+Start+2P&display=swap');
+
+:root {
+    --bg-dark: #07090e;
+    --bg-surface: #0e121d;
+    --bg-surface-elevated: #161c2d;
+    --bg-cabinet: #1a1e29;
+    
+    --neon-pink: #ff0055;
+    --neon-amber: #ffb703;
+    --neon-cyan: #00f5d4;
+    --neon-green: #10b981;
+    --neon-purple: #8b5cf6;
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-neon: rgba(255, 0, 85, 0.4);
+    
+    --font-pixel: 'Press Start 2P', monospace;
+    --font-tech: 'Chakra Petch', sans-serif;
+    --font-body: 'Outfit', sans-serif;
+    
+    --glow-pink: 0 0 15px rgba(255, 0, 85, 0.5), 0 0 30px rgba(255, 0, 85, 0.2);
+    --glow-amber: 0 0 15px rgba(255, 183, 3, 0.5), 0 0 30px rgba(255, 183, 3, 0.2);
+    --glow-cyan: 0 0 15px rgba(0, 245, 212, 0.5), 0 0 30px rgba(0, 245, 212, 0.2);
+    
+    --header-height: 58px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+
+/* Base App Layout */
+#app-container {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100dvh;
+    background: radial-gradient(circle at 50% 20%, #151928 0%, #07090e 100%);
+    position: relative;
+}
+
+/* ==========================================================================
+   Header & Arcade Navigation Bar
+   ========================================================================== */
+#arcade-header {
+    height: var(--header-height);
+    background: rgba(14, 18, 29, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 100;
+    flex-shrink: 0;
+}
+
+.brand-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.arcade-badge {
+    background: linear-gradient(135deg, var(--neon-pink), #e11d48);
+    color: #fff;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    padding: 4px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.4);
+    letter-spacing: 0.5px;
+}
+
+.arcade-title {
+    font-family: var(--font-tech);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.arcade-title .accent {
+    color: var(--neon-amber);
+    text-shadow: var(--glow-amber);
+}
+
+.arcade-fps-badge {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--neon-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 2px 6px;
+    border-radius: 12px;
+}
+
+/* Gamepad HUD Indicator */
+#gamepad-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-tech);
+    font-size: 13px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border-subtle);
+    transition: all 0.3s ease;
+}
+
+#gamepad-status-indicator.connected {
+    color: var(--neon-cyan);
+    border-color: rgba(0, 245, 212, 0.4);
+    background: rgba(0, 245, 212, 0.1);
+    box-shadow: 0 0 10px rgba(0, 245, 212, 0.2);
+}
+
+.pulse {
+    animation: pulse-glow 1.5s infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+/* Header Toolbar Controls */
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.arcade-tool-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: var(--font-tech);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.arcade-tool-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.arcade-tool-btn.active {
+    background: rgba(255, 0, 85, 0.15);
+    border-color: var(--neon-pink);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.3);
+}
+
+.coin-btn {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    border-color: var(--neon-amber);
+    color: #000 !important;
+    font-weight: 700;
+    text-shadow: none;
+    box-shadow: var(--glow-amber);
+}
+
+.coin-btn:hover {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    transform: translateY(-1px);
+}
+
+.coin-btn.coin-inserted {
+    animation: coin-bounce 0.25s ease;
+}
+
+@keyframes coin-bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.92); }
+}
+
+.credit-badge {
+    background: #000;
+    color: var(--neon-amber);
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-left: 2px;
+}
+
+/* ==========================================================================
+   Viewport Container & Arcade Screen
+   ========================================================================== */
+#arcade-viewport-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+}
+
+/* Screen Wrapper maintaining CPS-1 4:3 native ratio */
+.game-screen-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 4 / 3;
+    background: #000;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+}
+
+#arcade-viewport-container.edge-to-edge .game-screen-wrapper {
+    width: 100%;
+    height: 100%;
+    max-width: calc(100dvh * 4 / 3);
+    max-height: 100dvh;
+}
+
+/* Cabinet Mode Styling */
+#arcade-viewport-container.cabinet-mode {
+    padding: 20px;
+    background: radial-gradient(circle at center, #1e2433 0%, #080a10 100%);
+}
+
+#arcade-viewport-container.cabinet-mode .game-screen-wrapper {
+    border: 12px solid #272d3f;
+    border-radius: 16px;
+    box-shadow: 
+        0 0 0 2px rgba(255, 255, 255, 0.1),
+        0 20px 50px rgba(0, 0, 0, 0.9),
+        inset 0 0 30px rgba(0, 0, 0, 0.8);
+    position: relative;
+}
+
+#arcade-viewport-container.cabinet-mode .game-screen-wrapper::before {
+    content: 'CAPCOM CPS-1.5 • STEREO Q-SOUND';
+    position: absolute;
+    top: -24px;
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--neon-amber);
+    letter-spacing: 2px;
+    opacity: 0.8;
+}
+
+/* Actual Game Container for EmulatorJS */
+#game-viewport {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+#game-viewport canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+}
+
+/* Drag over style */
+#arcade-viewport-container.drag-over {
+    outline: 3px dashed var(--neon-cyan);
+    outline-offset: -10px;
+}
+
+/* ==========================================================================
+   CRT Scanline & Monitor Simulation Overlay
+   ========================================================================== */
+#crt-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#crt-overlay.crt-active {
+    opacity: 1;
+    background: 
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    background-size: 100% 3px, 6px 100%;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.6);
+}
+
+#crt-overlay.crt-active::after {
+    content: " ";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 65%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* ==========================================================================
+   Start Screen & Loading Overlays
+   ========================================================================== */
+.overlay-curtain {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 9, 14, 0.94);
+    backdrop-filter: blur(8px);
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.overlay-curtain.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.start-hero-card {
+    max-width: 620px;
+    width: 90%;
+    text-align: center;
+    padding: 36px 24px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 0, 85, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.start-hero-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--neon-pink), var(--neon-amber), var(--neon-cyan));
+}
+
+.hero-subtitle {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--neon-amber);
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+}
+
+.hero-main-title {
+    font-family: var(--font-tech);
+    font-size: 38px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.1;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    text-shadow: 0 0 20px rgba(255, 0, 85, 0.6);
+}
+
+.hero-tagline {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+/* Character Quick Roster */
+.character-roster-preview {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 28px;
+}
+
+.roster-item {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 12px 6px;
+    border-radius: 10px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.roster-item:hover {
+    transform: translateY(-3px);
+    border-color: var(--neon-amber);
+}
+
+.roster-icon {
+    font-size: 26px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.roster-name {
+    font-family: var(--font-tech);
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    display: block;
+}
+
+.roster-role {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* Big Start Button */
+.btn-arcade-launch {
+    width: 100%;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, var(--neon-pink), #e11d48);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: var(--font-pixel);
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: var(--glow-pink);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.btn-arcade-launch:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 25px rgba(255, 0, 85, 0.7);
+}
+
+.btn-arcade-launch:active {
+    transform: translateY(1px);
+}
+
+.hero-shortcuts-hint {
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.shortcut-tag {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.custom-rom-note {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.custom-rom-link {
+    color: var(--neon-cyan);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Loading Overlay */
+.loading-box {
+    max-width: 440px;
+    width: 90%;
+    text-align: center;
+    padding: 32px 24px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+}
+
+.loading-dino-icon {
+    font-size: 42px;
+    animation: dino-bounce 1s infinite alternate ease-in-out;
+    margin-bottom: 12px;
+}
+
+@keyframes dino-bounce {
+    0% { transform: translateY(0) scale(1); }
+    100% { transform: translateY(-8px) scale(1.08); }
+}
+
+.loading-title {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    color: var(--neon-amber);
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+}
+
+.progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+#loading-progress-bar {
+    width: 10%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-pink), var(--neon-amber));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+#loading-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Modals (Character Moves & Help/Shortcuts)
+   ========================================================================== */
+.arcade-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 7, 12, 0.85);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s ease;
+    padding: 16px;
+}
+
+.arcade-modal.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-dialog {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    max-width: 840px;
+    width: 100%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface-elevated);
+}
+
+.modal-title {
+    font-family: var(--font-tech);
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+
+.modal-close:hover {
+    color: var(--neon-pink);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Character Cards Grid */
+.character-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+}
+
+.character-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-left: 4px solid var(--char-color, var(--neon-amber));
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.char-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.char-avatar {
+    font-size: 28px;
+}
+
+.char-name {
+    font-family: var(--font-tech);
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.char-alias {
+    font-size: 11px;
+    color: var(--char-color, var(--neon-amber));
+    font-weight: 600;
+}
+
+.char-quote {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.char-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+/* Stat bars */
+.char-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 8px 10px;
+    border-radius: 6px;
+}
+
+.stat-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-name {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--text-muted);
+}
+
+.stat-track {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.stat-fill {
+    height: 100%;
+    background: var(--char-color, var(--neon-amber));
+    border-radius: 3px;
+}
+
+/* Moves list */
+.char-moves-list h4 {
+    font-family: var(--font-tech);
+    font-size: 12px;
+    color: #fff;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.move-item {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+}
+
+.move-name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.move-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.move-input {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--neon-cyan);
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.move-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+}
+
+/* Weapons Arsenal */
+.arsenal-section h3 {
+    font-family: var(--font-tech);
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+}
+
+.weapons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.weapon-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.weapon-icon {
+    font-size: 22px;
+}
+
+.weapon-info h5 {
+    font-size: 13px;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.weapon-info p {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* Help & Control Tables */
+.controls-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.guide-box {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.guide-box h4 {
+    font-family: var(--font-tech);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.control-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.control-table td {
+    padding: 6px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.control-table td:first-child {
+    color: var(--text-secondary);
+}
+
+.control-table td:last-child {
+    text-align: right;
+    font-weight: 600;
+    color: var(--neon-cyan);
+}
+
+/* ==========================================================================
+   Toasts Notification Center
+   ========================================================================== */
+#toast-container {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.arcade-toast {
+    background: rgba(14, 18, 29, 0.95);
+    border: 1px solid var(--border-subtle);
+    color: #fff;
+    font-family: var(--font-tech);
+    font-size: 13px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    transform: translateX(120%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arcade-toast.show {
+    transform: translateX(0);
+}
+
+.toast-success {
+    border-left: 4px solid var(--neon-green);
+}
+
+.toast-warn {
+    border-left: 4px solid var(--neon-amber);
+}
+
+.toast-info {
+    border-left: 4px solid var(--neon-cyan);
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+@media (max-width: 900px) {
+    .btn-text {
+        display: none;
+    }
+    
+    .arcade-tool-btn {
+        padding: 6px 9px;
+    }
+
+    #gamepad-status-indicator .indicator-text {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    #arcade-header {
+        padding: 0 8px;
+    }
+
+    .arcade-title {
+        font-size: 14px;
+    }
+
+    .character-roster-preview {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
