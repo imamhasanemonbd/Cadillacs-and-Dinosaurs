@@ -685,28 +685,35 @@ class DinoArcadeApp {
         }
     }
 
-    getAmmoPatchOffset(heap) {
-        if (this._ammoPatchOffset && this._ammoPatchOffset + 8 < heap.length) {
-            return this._ammoPatchOffset;
+    getRomBase(heap) {
+        if (this._romBase && this._romBase + 0x180000 <= heap.length) {
+            return this._romBase;
         }
-        const defaultOffset = 0x64746be;
-        const target = [0x6a, 0x36, 0xb4, 0x00];
-
-        // Fast check default offset
-        if (defaultOffset + 8 < heap.length) {
-            if (heap[defaultOffset] === target[0] && heap[defaultOffset + 1] === target[1] &&
-                heap[defaultOffset + 2] === target[2] && heap[defaultOffset + 3] === target[3]) {
-                this._ammoPatchOffset = defaultOffset;
-                return defaultOffset;
+        const defaultBase = 0x6450ce0;
+        const sig = [0xff, 0x00, 0x66, 0x0e, 0x00, 0x00, 0x1a, 0x04];
+        if (defaultBase + 8 < heap.length) {
+            let match = true;
+            for (let j = 0; j < 8; j++) {
+                if (heap[defaultBase + j] !== sig[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                this._romBase = defaultBase;
+                return defaultBase;
             }
         }
 
-        // Fast scan in 68000 ROM range (0x6000000 - 0x7000000)
+        // Scan in 68000 ROM range (0x6000000 - 0x7000000)
         const start = Math.max(0, 0x6000000);
         const end = Math.min(heap.length - 8, 0x7000000);
         for (let i = start; i < end; i += 2) {
-            if (heap[i] === target[0] && heap[i + 1] === target[1] && heap[i + 2] === target[2] && heap[i + 3] === target[3]) {
-                this._ammoPatchOffset = i;
+            if (heap[i] === sig[0] && heap[i + 1] === sig[1] &&
+                heap[i + 2] === sig[2] && heap[i + 3] === sig[3] &&
+                heap[i + 4] === sig[4] && heap[i + 5] === sig[5] &&
+                heap[i + 6] === sig[6] && heap[i + 7] === sig[7]) {
+                this._romBase = i;
                 return i;
             }
         }
@@ -717,27 +724,93 @@ class DinoArcadeApp {
         const mod = window.EJS_emulator?.Module;
         if (!mod || !mod.HEAPU8) return;
         const heap = mod.HEAPU8;
-        const patchAddr = this.getAmmoPatchOffset(heap);
-        if (!patchAddr) return;
+        const romBase = this.getRomBase(heap);
+        if (romBase === null) return;
+
+        // All 68000 firearm bullet decrement offsets in ROM (A3 and A6 entity pointers):
+        // Single-shot (Pistol/Rifle/Bazooka), Automatic (Uzi/M-16), Shotgun (SUBQ #8), Burst fire
+        const a3Offsets = [
+            0x10788, 0x10A5E, 0x10D92, 0x10EFE, 0x10F10, 0x110DE, 0x111D6,
+            0x1142A, 0x1150C, 0x116D2, 0x11806, 0x11912, 0x11A44, 0x11BCA,
+            0x11DEA, 0x11F20, 0x11FF8, 0x121A4, 0x1227A, 0x123E4, 0x124F6,
+            0x1256A, 0x1262E, 0x126D2
+        ];
+        const a6Offsets = [
+            0x18ED6, 0x25212, 0x252FE, 0x2556A, 0x256D0, 0x257DE, 0x25902
+        ];
+
+        if (!this._origAmmoOpcodes) {
+            this._origAmmoOpcodes = {};
+        }
 
         if (enabled) {
-            // In-place patch at 0x0239DE: Keep original 'move.w $B4(A2), D3' (4 bytes),
-            // and replace 'move.w $6C(A3), D0' (4 bytes) with 'moveq #$63, D0; nop' (4 bytes).
-            // Big-endian: 70 63 4E 71 -> Byte-swapped for 16-bit wasm: 63 70 71 4E
-            heap[patchAddr] = 0x6a;
-            heap[patchAddr + 1] = 0x36;
-            heap[patchAddr + 2] = 0xb4;
-            heap[patchAddr + 3] = 0x00;
-            heap[patchAddr + 4] = 0x63;
-            heap[patchAddr + 5] = 0x70;
-            heap[patchAddr + 6] = 0x71;
-            heap[patchAddr + 7] = 0x4e;
+            // 1. Safe ASM Subroutine in unused ROM padding (0x1370C):
+            // 366A 00B4: MOVE.W $00B4(A2), D3
+            // 7063:      MOVEQ #$63, D0        (99 bullets)
+            // 3740 006C: MOVE.W D0, $006C(A3)  (Writes 99 directly into weapon ammo in RAM)
+            // 4E75:      RTS
+            // Byte-swapped for 16-bit WASM: 6a 36 b4 00 63 70 40 37 6c 00 75 4e
+            const subBytes = [0x6a, 0x36, 0xb4, 0x00, 0x63, 0x70, 0x40, 0x37, 0x6c, 0x00, 0x75, 0x4e];
+            for (let i = 0; i < subBytes.length; i++) {
+                heap[romBase + 0x1370c + i] = subBytes[i];
+            }
+
+            // 2. Hook at 0x0239DE:
+            // 4EB9 0001 370C: JSR $01370C
+            // 4E71:           NOP
+            // Byte-swapped for 16-bit WASM: b9 4e 01 00 0c 37 71 4e
+            const hookBytes = [0xb9, 0x4e, 0x01, 0x00, 0x0c, 0x37, 0x71, 0x4e];
+            for (let i = 0; i < hookBytes.length; i++) {
+                heap[romBase + 0x239de + i] = hookBytes[i];
+            }
+
+            // 3. Patch all weapon fire decrement instructions in-place to TST.W:
+            // Tests $006C without decrementing. The following BGT branch always executes,
+            // and the weapon never empties or gets discarded!
+            for (const off of a3Offsets) {
+                const addr = romBase + off;
+                if (!this._origAmmoOpcodes[off]) {
+                    this._origAmmoOpcodes[off] = [heap[addr], heap[addr + 1], heap[addr + 2], heap[addr + 3]];
+                }
+                heap[addr] = 0x6b;
+                heap[addr + 1] = 0x4a;
+                heap[addr + 2] = 0x6c;
+                heap[addr + 3] = 0x00;
+            }
+
+            for (const off of a6Offsets) {
+                const addr = romBase + off;
+                if (!this._origAmmoOpcodes[off]) {
+                    this._origAmmoOpcodes[off] = [heap[addr], heap[addr + 1], heap[addr + 2], heap[addr + 3]];
+                }
+                heap[addr] = 0x6e;
+                heap[addr + 1] = 0x4a;
+                heap[addr + 2] = 0x6c;
+                heap[addr + 3] = 0x00;
+            }
         } else {
             // Restore original 8 bytes at 0x0239DE:
-            // move.w $B4(A2), D3; move.w $6C(A3), D0
-            const orig8 = [0x6a, 0x36, 0xb4, 0x00, 0x2b, 0x30, 0x6c, 0x00];
-            for (let i = 0; i < orig8.length; i++) {
-                heap[patchAddr + i] = orig8[i];
+            // MOVE.W $00B4(A2), D3; MOVE.W $006C(A3), D0
+            const origHook = [0x6a, 0x36, 0xb4, 0x00, 0x2b, 0x30, 0x6c, 0x00];
+            for (let i = 0; i < origHook.length; i++) {
+                heap[romBase + 0x239de + i] = origHook[i];
+            }
+
+            // Restore padding at 0x1370C
+            for (let i = 0; i < 12; i++) {
+                heap[romBase + 0x1370c + i] = 0x00;
+            }
+
+            // Restore all decrement opcodes
+            for (const off of [...a3Offsets, ...a6Offsets]) {
+                const orig = this._origAmmoOpcodes[off];
+                if (orig) {
+                    const addr = romBase + off;
+                    heap[addr] = orig[0];
+                    heap[addr + 1] = orig[1];
+                    heap[addr + 2] = orig[2];
+                    heap[addr + 3] = orig[3];
+                }
             }
         }
     }
@@ -789,7 +862,7 @@ class DinoArcadeApp {
         this.cheatRunning = true;
 
         const loop = () => {
-            if (!this.cheats.immortal) {
+            if (!this.cheats.immortal && !this.cheats.ammo) {
                 this.cheatRunning = false;
                 if (this.cheatRafId) {
                     cancelAnimationFrame(this.cheatRafId);
@@ -804,8 +877,13 @@ class DinoArcadeApp {
 
             const mod = window.EJS_emulator?.Module;
             const base = this.getRamBase();
-            if (mod && mod.HEAPU8 && base !== null) {
-                this.applyImmortalCheat(mod.HEAPU8, base);
+            if (mod && mod.HEAPU8) {
+                if (this.cheats.immortal && base !== null) {
+                    this.applyImmortalCheat(mod.HEAPU8, base);
+                }
+                if (this.cheats.ammo) {
+                    this.setUnlimitedAmmo(true);
+                }
             }
 
             this.cheatRafId = requestAnimationFrame(loop);
@@ -813,18 +891,23 @@ class DinoArcadeApp {
 
         this.cheatRafId = requestAnimationFrame(loop);
 
-        // Fallback interval (runs every 60ms) to preserve immortal state if tab blurs
+        // Fallback interval (runs every 60ms) to preserve cheats if tab blurs
         if (!this.cheatInterval) {
             this.cheatInterval = setInterval(() => {
-                if (!this.cheats.immortal) {
+                if (!this.cheats.immortal && !this.cheats.ammo) {
                     clearInterval(this.cheatInterval);
                     this.cheatInterval = null;
                     return;
                 }
                 const mod = window.EJS_emulator?.Module;
                 const base = this.getRamBase();
-                if (mod && mod.HEAPU8 && base !== null) {
-                    this.applyImmortalCheat(mod.HEAPU8, base);
+                if (mod && mod.HEAPU8) {
+                    if (this.cheats.immortal && base !== null) {
+                        this.applyImmortalCheat(mod.HEAPU8, base);
+                    }
+                    if (this.cheats.ammo) {
+                        this.setUnlimitedAmmo(true);
+                    }
                 }
             }, 60);
         }
