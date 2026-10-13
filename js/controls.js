@@ -50,7 +50,82 @@ class VirtualArcadeControls {
         const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         if (isTouch) {
             this.show();
+            this.setupLandscape();
         }
+    }
+
+    setupLandscape() {
+        document.documentElement.classList.add("mobile-game");
+        // Browsers require a gesture for fullscreen and may reject orientation locks.
+        const lockLandscape = async () => {
+            try {
+                if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                }
+                if (screen.orientation?.lock) await screen.orientation.lock("landscape");
+            } catch (_) {
+                // Portrait CSS keeps the game in landscape when locking is unavailable.
+            }
+        };
+        window.addEventListener("pointerdown", lockLandscape, { once: true });
+    }
+
+    bindJoystick() {
+        const stick = this.container.querySelector("#touch-joystick");
+        if (!stick) return;
+        const knob = stick.querySelector(".joystick-knob");
+        let pointerId = null;
+        const directions = ["up", "down", "left", "right"];
+        const update = (event) => {
+            const rect = stick.getBoundingClientRect();
+            let x = event.clientX - rect.left - rect.width / 2;
+            let y = event.clientY - rect.top - rect.height / 2;
+            // Convert screen coordinates into the rotated game's coordinate system.
+            if (getComputedStyle(document.getElementById("app-container")).transform !== "none") {
+                [x, y] = [y, -x];
+            }
+            const radius = stick.clientWidth * 0.32;
+            const distance = Math.hypot(x, y);
+            if (distance > radius) {
+                x *= radius / distance;
+                y *= radius / distance;
+            }
+            knob.style.transform = `translate(${x}px, ${y}px)`;
+            const next = new Set();
+            if (distance > radius * 0.2) {
+                const angle = Math.atan2(y, x);
+                if (Math.cos(angle) > 0.38) next.add("right");
+                if (Math.cos(angle) < -0.38) next.add("left");
+                if (Math.sin(angle) > 0.38) next.add("down");
+                if (Math.sin(angle) < -0.38) next.add("up");
+            }
+            for (const direction of directions) {
+                if (next.has(direction)) this.press(direction);
+                else this.release(direction);
+            }
+        };
+        const reset = () => {
+            pointerId = null;
+            knob.style.transform = "translate(0, 0)";
+            directions.forEach(direction => this.release(direction));
+        };
+        stick.addEventListener("pointerdown", event => {
+            if (pointerId !== null) return;
+            event.preventDefault();
+            pointerId = event.pointerId;
+            stick.setPointerCapture(pointerId);
+            update(event);
+        });
+        stick.addEventListener("pointermove", event => {
+            if (event.pointerId === pointerId) update(event);
+        });
+        for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) {
+            stick.addEventListener(name, event => {
+                if (event.pointerId === pointerId) reset();
+            });
+        }
+        window.addEventListener("blur", reset);
+        window.addEventListener("resize", () => { reset(); this.releaseAll(); });
     }
 
     show() {
@@ -177,43 +252,7 @@ class VirtualArcadeControls {
     bindEvents() {
         if (!this.container) return;
 
-        // D-Pad buttons
-        const dpadBtns = this.container.querySelectorAll("[data-dir]");
-        dpadBtns.forEach(btn => {
-            const dir = btn.getAttribute("data-dir");
-
-            const handleStart = (e) => {
-                e.preventDefault();
-                btn.classList.add("active");
-                if (dir.includes("-")) {
-                    // Diagonal (e.g. up-left)
-                    const [d1, d2] = dir.split("-");
-                    this.press(d1);
-                    this.press(d2);
-                } else {
-                    this.press(dir);
-                }
-            };
-
-            const handleEnd = (e) => {
-                e.preventDefault();
-                btn.classList.remove("active");
-                if (dir.includes("-")) {
-                    const [d1, d2] = dir.split("-");
-                    this.release(d1);
-                    this.release(d2);
-                } else {
-                    this.release(dir);
-                }
-            };
-
-            btn.addEventListener("touchstart", handleStart, { passive: false });
-            btn.addEventListener("touchend", handleEnd, { passive: false });
-            btn.addEventListener("touchcancel", handleEnd, { passive: false });
-            btn.addEventListener("mousedown", handleStart);
-            btn.addEventListener("mouseup", handleEnd);
-            btn.addEventListener("mouseleave", handleEnd);
-        });
+        this.bindJoystick();
 
         // Action Buttons (A, B, Special, Coin, Start)
         const actionBtns = this.container.querySelectorAll("[data-action]");

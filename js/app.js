@@ -42,9 +42,10 @@ class DinoArcadeApp {
             window.arcadeGamepad.setStatusElement(this.elements.gamepadIndicator);
         }
 
-        // Initialize mobile touch controls
-        if (window.virtualArcadeControls && this.elements.touchControls) {
-            window.virtualArcadeControls.init(this.elements.touchControls);
+        // Keep mobile landscape handling; EmulatorJS renders the touch controls.
+        if (window.virtualArcadeControls &&
+            ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+            window.virtualArcadeControls.setupLandscape();
         }
 
         // Keyboard hotkeys
@@ -521,6 +522,21 @@ class DinoArcadeApp {
         window.EJS_core = 'arcade';
         window.EJS_gameName = 'dino.zip';
         window.EJS_color = '#e11d48';
+        // Use EmulatorJS native controls with only a joystick and X / Y buttons.
+        window.EJS_VirtualGamepadSettings = [
+            {
+                type: 'zone', location: 'left', left: '50%', top: '50%',
+                joystickInput: false, inputValues: [4, 5, 6, 7], color: 'blue'
+            },
+            {
+                type: 'button', text: 'X', id: 'x', location: 'right',
+                left: 10, top: 50, bold: true, input_value: 8
+            },
+            {
+                type: 'button', text: 'Y', id: 'y', location: 'right',
+                left: 80, top: 10, bold: true, input_value: 0
+            }
+        ];
         window.EJS_startOnLoaded = true;
         window.EJS_DEBUG_XX = true; // Bypass broken HEAD request cache check
         window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
