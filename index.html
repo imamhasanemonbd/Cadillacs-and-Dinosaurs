@@ -30,93 +30,6 @@
 <body>
 
 <div id="app-container">
-    <!-- Arcade Navigation & System Bar -->
-    <header id="arcade-header">
-        <div class="brand-section">
-            <span class="arcade-badge">CPS-1.5</span>
-            <h1 class="arcade-title">
-                Cadillacs <span class="accent">&</span> Dinosaurs
-            </h1>
-            <span class="arcade-fps-badge">60 FPS</span>
-        </div>
-
-        <!-- Live Gamepad / Input Status Indicator -->
-        <div id="gamepad-status-indicator" title="Connected input device status">
-            <span class="indicator-icon">⌨️</span>
-            <span class="indicator-text">Keyboard Active</span>
-        </div>
-
-        <!-- Toolbar Actions -->
-        <div class="toolbar-section">
-            <!-- Insert Coin -->
-            <button id="btn-insert-coin" class="arcade-tool-btn coin-btn" title="Insert Coin (Key: 5, C, or V)">
-                <span class="btn-icon">🪙</span>
-                <span class="btn-text">Coin</span>
-                <span id="credits-counter" class="credit-badge">00</span>
-            </button>
-
-            <!-- 1P Start -->
-            <button id="btn-start-p1" class="arcade-tool-btn start-p1-btn" title="Start 1P Game (Key: 1 or Enter)">
-                <span class="btn-icon">▶</span>
-                <span class="btn-text">1P Start</span>
-            </button>
-
-            <!-- Cheat: Immortal / God Mode -->
-            <button id="btn-cheat-immortal" class="arcade-tool-btn cheat-btn" title="Toggle Immortal / God Mode (Key: G)">
-                <span class="btn-icon">🛡️</span>
-                <span class="btn-text">Immortal</span>
-            </button>
-
-            <!-- Cheat: Unlimited Ammo -->
-            <button id="btn-cheat-ammo" class="arcade-tool-btn cheat-btn" title="Toggle Unlimited Ammo for All Weapons (Key: U)">
-                <span class="btn-icon">🔫</span>
-                <span class="btn-text">Ammo</span>
-            </button>
-
-            <!-- CRT Toggle -->
-            <button id="btn-toggle-crt" class="arcade-tool-btn active" title="Toggle Retro CRT Scanlines">
-                <span class="btn-icon">📺</span>
-                <span class="btn-text">CRT</span>
-            </button>
-
-            <!-- View Mode (Edge-to-Edge / Cabinet) -->
-            <button id="btn-toggle-viewmode" class="arcade-tool-btn" title="Toggle Pure Fullscreen vs Cabinet Frame">
-                <span class="btn-icon">⚡</span>
-                <span class="btn-text">Pure Full</span>
-            </button>
-
-            <!-- Virtual Touch Controls Toggle -->
-            <button id="btn-toggle-touch" class="arcade-tool-btn" title="Toggle Virtual Touch Controls">
-                <span class="btn-icon">🕹️</span>
-                <span class="btn-text">Touch</span>
-            </button>
-
-            <!-- Moves Guide -->
-            <button id="btn-show-moves" class="arcade-tool-btn" title="Character Moves & Combos">
-                <span class="btn-icon">📜</span>
-                <span class="btn-text">Moves</span>
-            </button>
-
-            <!-- Help & Shortcuts -->
-            <button id="btn-show-help" class="arcade-tool-btn" title="Controls & Shortcuts Guide">
-                <span class="btn-icon">⌨️</span>
-                <span class="btn-text">Help</span>
-            </button>
-
-            <!-- Audio Mute -->
-            <button id="btn-toggle-mute" class="arcade-tool-btn" title="Toggle Sound FX">
-                <span class="btn-icon">🔊</span>
-                <span class="btn-text">Sound</span>
-            </button>
-
-            <!-- Native Fullscreen -->
-            <button id="btn-toggle-fullscreen" class="arcade-tool-btn" title="Toggle Fullscreen (Key: F)">
-                <span class="btn-icon">⛶</span>
-                <span class="btn-text">Full</span>
-            </button>
-        </div>
-    </header>
-
     <!-- Main Arcade Viewport Container -->
     <main id="arcade-viewport-container" class="edge-to-edge">
         <div class="game-screen-wrapper">
@@ -201,25 +114,7 @@
                 </div>
             </div>
 
-            <!-- In-Game Floating Quick Action HUD -->
-            <div id="arcade-live-hud" class="hidden">
-                <button id="hud-btn-coin" class="hud-pill-btn hud-coin" title="Insert Coin (Key: 5 or C)">
-                    <span>🪙</span> INSERT COIN <span class="hud-key-hint">(5)</span>
-                </button>
-                <button id="hud-btn-start" class="hud-pill-btn hud-start" title="Start Player 1 (Key: 1 or Enter)">
-                    <span>▶</span> 1P START <span class="hud-key-hint">(1 / Enter)</span>
-                </button>
-                <button id="hud-btn-cheat-immortal" class="hud-pill-btn hud-cheat" title="Toggle Immortal / God Mode (Key: G)">
-                    <span>🛡️</span> Immortal: <span id="hud-status-immortal">OFF</span>
-                </button>
-                <button id="hud-btn-cheat-ammo" class="hud-pill-btn hud-cheat" title="Toggle Unlimited Ammo (Key: U)">
-                    <span>🔫</span> Ammo: <span id="hud-status-ammo">OFF</span>
-                </button>
-                <div class="hud-info-guide">
-                    <span>Fighter: <strong>← / →</strong></span>
-                    <span>Pick: <strong>Z / J</strong></span>
-                </div>
-            </div>
+
         </div>
     </main>
 </div>
