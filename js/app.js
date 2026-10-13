@@ -54,18 +54,14 @@ class DinoArcadeApp {
         if (window.innerWidth <= 768) {
             this.setViewMode('fullscreen');
         }
+
+        this.startGame();
     }
 
     cacheDOMElements() {
         this.elements = {
             viewportContainer: document.getElementById('arcade-viewport-container'),
             gameViewport: document.getElementById('game-viewport'),
-            startOverlay: document.getElementById('start-overlay'),
-            btnStart: document.getElementById('btn-start-game'),
-            downloadBox: document.getElementById('download-progress-container'),
-            downloadStatus: document.getElementById('download-status-label'),
-            downloadMbText: document.getElementById('download-mb-label'),
-            downloadProgressFill: document.getElementById('download-progress-fill'),
             btnInsertCoin: document.getElementById('btn-insert-coin'),
             btnStartP1: document.getElementById('btn-start-p1'),
             btnCheatImmortal: document.getElementById('btn-cheat-immortal'),
@@ -96,11 +92,6 @@ class DinoArcadeApp {
     }
 
     bindUIEvents() {
-        // Start Game from initial hero splash
-        this.elements.btnStart?.addEventListener('click', () => {
-            this.startGame();
-        });
-
         // Insert Coin toolbar button
         this.elements.btnInsertCoin?.addEventListener('click', () => {
             this.insertCoin();
@@ -471,20 +462,6 @@ class DinoArcadeApp {
         if (this.gameStarted) return;
         this.gameStarted = true;
 
-        if (window.arcadeSFX) {
-            window.arcadeSFX.init();
-            window.arcadeSFX.playStartSound();
-        }
-
-        // Hide Play button, reveal real-time MB download progress on card
-        if (this.elements.btnStart) {
-            this.elements.btnStart.style.display = 'none';
-        }
-        if (this.elements.downloadBox) {
-            this.elements.downloadBox.classList.remove('hidden');
-        }
-
-        this.updateDownloadProgress(0, '0.0', '3.8', 'Connecting to arcade ROM...');
         this.downloadRomAndLaunch();
     }
 
@@ -493,19 +470,8 @@ class DinoArcadeApp {
         xhr.open('GET', this.romUrl, true);
         xhr.responseType = 'blob';
 
-        xhr.onprogress = (e) => {
-            const loadedBytes = e.loaded;
-            const totalBytes = e.lengthComputable && e.total > 0 ? e.total : 3943614; // dino.zip is ~3.8 MB
-            const loadedMB = (loadedBytes / (1024 * 1024)).toFixed(1);
-            const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
-            const percent = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
-
-            this.updateDownloadProgress(percent, loadedMB, totalMB, 'Downloading dino.zip');
-        };
-
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
-                this.updateDownloadProgress(100, '3.8', '3.8', 'Launching Arcade Engine...');
                 const blobUrl = URL.createObjectURL(xhr.response);
                 this.launchEmulator(blobUrl);
             } else {
@@ -520,18 +486,6 @@ class DinoArcadeApp {
         };
 
         xhr.send();
-    }
-
-    updateDownloadProgress(percent, loadedMB, totalMB, statusText) {
-        if (this.elements.downloadProgressFill) {
-            this.elements.downloadProgressFill.style.width = `${percent}%`;
-        }
-        if (this.elements.downloadMbText) {
-            this.elements.downloadMbText.textContent = `${loadedMB} MB / ${totalMB} MB (${percent}%)`;
-        }
-        if (this.elements.downloadStatus && statusText) {
-            this.elements.downloadStatus.textContent = statusText;
-        }
     }
 
     launchEmulator(romUrlOrBlob) {
@@ -625,9 +579,6 @@ class DinoArcadeApp {
             this.progressObserver = null;
         }
 
-        if (this.elements.startOverlay) {
-            this.elements.startOverlay.classList.add('hidden');
-        }
         if (this.elements.liveHud) {
             this.elements.liveHud.classList.remove('hidden');
         }
