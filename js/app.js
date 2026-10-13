@@ -212,31 +212,141 @@ class DinoArcadeApp {
     }
 
     bindKeyboardShortcuts() {
+        this.pressedKeys = new Set();
+        this.buttonRefCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0 };
+
+        const getButtonForCode = (code, key) => {
+            const k = (key || '').toLowerCase();
+            // 8-Way Movement: Up (4), Down (5), Left (6), Right (7)
+            if (code === 'KeyW' || k === 'w' || code === 'ArrowUp') return 4;
+            if (code === 'KeyS' || k === 's' || code === 'ArrowDown') return 5;
+            if (code === 'KeyA' || k === 'a' || code === 'ArrowLeft') return 6;
+            if (code === 'KeyD' || k === 'd' || code === 'ArrowRight') return 7;
+
+            // Attack (8): J or Z
+            if (code === 'KeyJ' || k === 'j' || code === 'KeyZ' || k === 'z') return 8;
+
+            // Jump (0): K or X
+            if (code === 'KeyK' || k === 'k' || code === 'KeyX' || k === 'x') return 0;
+
+            return null;
+        };
+
+        const isSpecialMove = (code, key) => {
+            const k = (key || '').toLowerCase();
+            return code === 'KeyL' || k === 'l' || code === 'Space' || k === ' ';
+        };
+
+        const sendSimulate = (buttonId, state) => {
+            if (window.EJS_emulator && window.EJS_emulator.gameManager && typeof window.EJS_emulator.gameManager.simulateInput === 'function') {
+                try {
+                    window.EJS_emulator.gameManager.simulateInput(0, buttonId, state);
+                } catch (_) {}
+            }
+        };
+
         window.addEventListener('keydown', (e) => {
             // Prevent interference if user is in an input field
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+            // Hotkeys: Fullscreen (F), Cheats (G, U), Modals (Esc)
+            if (e.key === 'g' || e.key === 'G') {
+                this.toggleCheat('immortal');
+                return;
+            }
+            if (e.key === 'u' || e.key === 'U') {
+                this.toggleCheat('ammo');
+                return;
+            }
+            if (e.key === 'f' || e.key === 'F') {
+                if (!e.ctrlKey && !e.metaKey) {
+                    this.toggleFullscreen();
+                    return;
+                }
+            }
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.arcade-modal').forEach(m => m.classList.remove('open'));
+                return;
+            }
+
             // Coin keys: 5, c, C, v, V
             if (e.key === '5' || e.code === 'Digit5' || e.key === 'c' || e.key === 'C' || e.key === 'v' || e.key === 'V') {
                 this.insertCoin();
-            } 
-            // 1P Start keys: 1, Digit1, Enter
-            else if (e.key === '1' || e.code === 'Digit1' || e.key === 'Enter') {
-                this.pressStart();
-            } 
-            // Cheat shortcuts: G = God Mode / Immortal, U = Unlimited Ammo
-            else if (e.key === 'g' || e.key === 'G') {
-                this.toggleCheat('immortal');
-            } 
-            else if (e.key === 'u' || e.key === 'U') {
-                this.toggleCheat('ammo');
+                return;
             }
-            else if (e.key === 'f' || e.key === 'F') {
-                if (!e.ctrlKey && !e.metaKey) {
-                    this.toggleFullscreen();
+
+            // 1P Start keys: 1, Digit1, Enter
+            if (e.key === '1' || e.code === 'Digit1' || e.key === 'Enter') {
+                this.pressStart();
+                return;
+            }
+
+            if (e.repeat) return; // Prevent browser repeat stutter
+            const normKey = e.code || e.key;
+
+            // Special Move (A + B Whirlwind Kick): L or Spacebar
+            if (isSpecialMove(e.code, e.key)) {
+                e.preventDefault();
+                if (!this.pressedKeys.has(normKey)) {
+                    this.pressedKeys.add(normKey);
+                    this.buttonRefCounts[8]++;
+                    this.buttonRefCounts[0]++;
+                    sendSimulate(8, 1);
+                    sendSimulate(0, 1);
                 }
-            } else if (e.key === 'Escape') {
-                document.querySelectorAll('.arcade-modal').forEach(m => m.classList.remove('open'));
+                return;
+            }
+
+            // Primary Arcade Controls (WASD, Arrows, J, K, Z, X)
+            const buttonId = getButtonForCode(e.code, e.key);
+            if (buttonId !== null) {
+                // Prevent browser page scrolling
+                e.preventDefault();
+
+                if (!this.pressedKeys.has(normKey)) {
+                    this.pressedKeys.add(normKey);
+                    this.buttonRefCounts[buttonId]++;
+                    if (this.buttonRefCounts[buttonId] === 1) {
+                        sendSimulate(buttonId, 1);
+                    }
+                }
+            }
+        }, { capture: true });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const normKey = e.code || e.key;
+
+            if (isSpecialMove(e.code, e.key)) {
+                if (this.pressedKeys.has(normKey)) {
+                    this.pressedKeys.delete(normKey);
+                    this.buttonRefCounts[8] = Math.max(0, this.buttonRefCounts[8] - 1);
+                    this.buttonRefCounts[0] = Math.max(0, this.buttonRefCounts[0] - 1);
+                    if (this.buttonRefCounts[8] === 0) sendSimulate(8, 0);
+                    if (this.buttonRefCounts[0] === 0) sendSimulate(0, 0);
+                }
+                return;
+            }
+
+            const buttonId = getButtonForCode(e.code, e.key);
+            if (buttonId !== null) {
+                if (this.pressedKeys.has(normKey)) {
+                    this.pressedKeys.delete(normKey);
+                    this.buttonRefCounts[buttonId] = Math.max(0, this.buttonRefCounts[buttonId] - 1);
+                    if (this.buttonRefCounts[buttonId] === 0) {
+                        sendSimulate(buttonId, 0);
+                    }
+                }
+            }
+        }, { capture: true });
+
+        // On window blur, release all buttons to prevent stuck movement
+        window.addEventListener('blur', () => {
+            if (this.pressedKeys) this.pressedKeys.clear();
+            for (let b = 0; b <= 8; b++) {
+                if (this.buttonRefCounts) this.buttonRefCounts[b] = 0;
+                sendSimulate(b, 0);
             }
         });
     }
@@ -431,18 +541,18 @@ class DinoArcadeApp {
             ["🔫 Unlimited Ammo (All Weapons)", "FFB6CE+63"]
         ];
 
-        // Configure Default Controls for Arcade (Must supply 4 players to prevent EJS setupKeys undefined[0] crash)
+        // Configure Default Controls for Arcade (Gamepads mapped to value2, keyboard handled exclusively at window level)
         window.EJS_defaultControls = {
             0: {
-                0: { "value": "x", "value2": "BUTTON_2" },  // B: Jump
-                1: { "value": "s", "value2": "BUTTON_4" },  // Y: Special
-                2: { "value": "5", "value2": "SELECT" },    // SELECT / COIN: 5
-                3: { "value": "1", "value2": "START" },     // START: 1
-                4: { "value": "up arrow", "value2": "DPAD_UP" },
-                5: { "value": "down arrow", "value2": "DPAD_DOWN" },
-                6: { "value": "left arrow", "value2": "DPAD_LEFT" },
-                7: { "value": "right arrow", "value2": "DPAD_RIGHT" },
-                8: { "value": "z", "value2": "BUTTON_1" }   // A: Attack
+                0: { "value": "", "value2": "BUTTON_2" },  // B: Jump
+                1: { "value": "", "value2": "BUTTON_4" },  // Y: Special
+                2: { "value": "", "value2": "SELECT" },    // SELECT / COIN
+                3: { "value": "", "value2": "START" },     // START
+                4: { "value": "", "value2": "DPAD_UP" },
+                5: { "value": "", "value2": "DPAD_DOWN" },
+                6: { "value": "", "value2": "DPAD_LEFT" },
+                7: { "value": "", "value2": "DPAD_RIGHT" },
+                8: { "value": "", "value2": "BUTTON_1" }   // A: Attack
             },
             1: {},
             2: {},
