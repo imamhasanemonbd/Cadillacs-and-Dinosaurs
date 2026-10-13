@@ -58,12 +58,11 @@ class DinoArcadeApp {
             viewportContainer: document.getElementById('arcade-viewport-container'),
             gameViewport: document.getElementById('game-viewport'),
             startOverlay: document.getElementById('start-overlay'),
-            loadingOverlay: document.getElementById('loading-overlay'),
-            loadingText: document.getElementById('loading-text'),
-            loadingSubtext: document.getElementById('loading-subtext'),
-            loadingProgress: document.getElementById('loading-progress-bar'),
-            btnForceEnter: document.getElementById('btn-force-enter-game'),
             btnStart: document.getElementById('btn-start-game'),
+            downloadBox: document.getElementById('download-progress-container'),
+            downloadStatus: document.getElementById('download-status-label'),
+            downloadMbText: document.getElementById('download-mb-label'),
+            downloadProgressFill: document.getElementById('download-progress-fill'),
             btnInsertCoin: document.getElementById('btn-insert-coin'),
             btnStartP1: document.getElementById('btn-start-p1'),
             btnCheatImmortal: document.getElementById('btn-cheat-immortal'),
@@ -364,22 +363,67 @@ class DinoArcadeApp {
             window.arcadeSFX.playStartSound();
         }
 
-        if (this.elements.startOverlay) {
-            this.elements.startOverlay.classList.add('hidden');
+        // Hide Play button, reveal real-time MB download progress on card
+        if (this.elements.btnStart) {
+            this.elements.btnStart.style.display = 'none';
         }
-        if (this.elements.loadingOverlay) {
-            this.elements.loadingOverlay.classList.remove('hidden');
+        if (this.elements.downloadBox) {
+            this.elements.downloadBox.classList.remove('hidden');
         }
 
-        this.setLoadingProgress(15, 'Preparing WebAssembly Arcade Engine (FBNeo)...', 'Loading emulator scripts');
-        this.loadEmulator();
+        this.updateDownloadProgress(0, '0.0', '3.8', 'Connecting to arcade ROM...');
+        this.downloadRomAndLaunch();
     }
 
-    loadEmulator() {
+    downloadRomAndLaunch() {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', this.romUrl, true);
+        xhr.responseType = 'blob';
+
+        xhr.onprogress = (e) => {
+            const loadedBytes = e.loaded;
+            const totalBytes = e.lengthComputable && e.total > 0 ? e.total : 3943614; // dino.zip is ~3.8 MB
+            const loadedMB = (loadedBytes / (1024 * 1024)).toFixed(1);
+            const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+            const percent = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+
+            this.updateDownloadProgress(percent, loadedMB, totalMB, 'Downloading dino.zip');
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
+                this.updateDownloadProgress(100, '3.8', '3.8', 'Launching Arcade Engine...');
+                const blobUrl = URL.createObjectURL(xhr.response);
+                this.launchEmulator(blobUrl);
+            } else {
+                console.warn('[DINO] Direct XHR status', xhr.status, 'launching with direct url');
+                this.launchEmulator(this.romUrl);
+            }
+        };
+
+        xhr.onerror = () => {
+            console.warn('[DINO] XHR network error, launching with direct url');
+            this.launchEmulator(this.romUrl);
+        };
+
+        xhr.send();
+    }
+
+    updateDownloadProgress(percent, loadedMB, totalMB, statusText) {
+        if (this.elements.downloadProgressFill) {
+            this.elements.downloadProgressFill.style.width = `${percent}%`;
+        }
+        if (this.elements.downloadMbText) {
+            this.elements.downloadMbText.textContent = `${loadedMB} MB / ${totalMB} MB (${percent}%)`;
+        }
+        if (this.elements.downloadStatus && statusText) {
+            this.elements.downloadStatus.textContent = statusText;
+        }
+    }
+
+    launchEmulator(romUrlOrBlob) {
         if (this.emulatorLoaded) return;
         this.emulatorLoaded = true;
-
-        this.setLoadingProgress(25, 'Downloading Capcom CPS-1 Core (FBNeo)...', 'Connecting to high-speed CDN');
 
         // Configure Cheats in EmulatorJS
         window.EJS_cheats = [
@@ -387,7 +431,7 @@ class DinoArcadeApp {
             ["🔫 Unlimited Ammo (All Weapons)", "FFB6CE+63"]
         ];
 
-        // Configure Default Controls for Arcade
+        // Configure Default Controls for Arcade (Must supply 4 players to prevent EJS setupKeys undefined[0] crash)
         window.EJS_defaultControls = {
             0: {
                 0: { "value": "x", "value2": "BUTTON_2" },  // B: Jump
@@ -399,48 +443,40 @@ class DinoArcadeApp {
                 6: { "value": "left arrow", "value2": "DPAD_LEFT" },
                 7: { "value": "right arrow", "value2": "DPAD_RIGHT" },
                 8: { "value": "z", "value2": "BUTTON_1" }   // A: Attack
-            }
+            },
+            1: {},
+            2: {},
+            3: {}
         };
 
         // Configure EmulatorJS globals
         window.EJS_player = '#game-viewport';
         window.EJS_core = 'arcade';
-        window.EJS_gameName = 'Cadillacs and Dinosaurs (World 930201)';
+        window.EJS_gameName = 'dino.zip';
         window.EJS_color = '#e11d48';
         window.EJS_startOnLoaded = true;
+        window.EJS_DEBUG_XX = true; // Bypass broken HEAD request cache check
         window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
-        window.EJS_gameUrl = this.romUrl;
+        window.EJS_gameUrl = romUrlOrBlob;
         window.EJS_fullscreenOnLoaded = false;
         window.EJS_volume = 0.9;
 
         // Callbacks
         window.EJS_onGameStart = () => {
             console.log('[DINO] Game loop started at 60 FPS');
-            this.dismissLoadingOverlay();
+            this.dismissStartOverlay();
         };
 
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
         window.EJS_onSaveState = () => this.showToast('💾 State Saved Successfully', 'info');
 
-        // Start watching real-time EmulatorJS progress and canvas attachment
+        // Watch for canvas mounting to instantly dismiss front card overlay
         this.setupEmulatorProgressWatcher();
 
         // Dynamically load EmulatorJS loader script
         const script = document.createElement('script');
         script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
         script.async = true;
-
-        script.onload = () => {
-            this.setLoadingProgress(40, 'Engine scripts loaded, compiling core...', 'Downloading 8.2MB FBNeo WASM binary');
-        };
-
-        script.onerror = () => {
-            console.warn('[DINO] Primary CDN failed, attempting fallback...');
-            this.setLoadingProgress(60, 'Connecting to fallback mirror...', 'Retrying ROM mirror');
-            window.EJS_gameUrl = this.fallbackRomUrl;
-            this.showToast('Retrying with backup ROM mirror...', 'warn');
-        };
-
         document.body.appendChild(script);
     }
 
@@ -448,60 +484,22 @@ class DinoArcadeApp {
         const viewport = this.elements.gameViewport;
         if (!viewport) return;
 
-        const checkProgress = () => {
-            // Find EmulatorJS loading text (updates with "Download Game Core XX%", "Download Game Data XX%")
-            const textElem = viewport.querySelector('.ejs_loading_text') || viewport.querySelector('[class*="loading"]');
-            if (textElem && textElem.innerText) {
-                const text = textElem.innerText.trim();
-                if (text) {
-                    let percent = 50;
-                    const match = text.match(/(\d+)%/);
-                    if (match) {
-                        const num = parseInt(match[1], 10);
-                        if (text.toLowerCase().includes('core')) {
-                            percent = Math.min(65, 30 + Math.round(num * 0.35));
-                        } else {
-                            percent = Math.min(95, 65 + Math.round(num * 0.3));
-                        }
-                    } else if (text.toLowerCase().includes('core')) {
-                        percent = 45;
-                    } else if (text.toLowerCase().includes('data') || text.toLowerCase().includes('rom')) {
-                        percent = 78;
-                    } else if (text.toLowerCase().includes('loading') || text.toLowerCase().includes('start')) {
-                        percent = 92;
-                    }
-                    this.setLoadingProgress(percent, text, 'Downloading arcade assets...');
-                }
-            }
-
-            // Check if canvas has started rendering or emulator started
+        const checkReady = () => {
             const canvas = viewport.querySelector('canvas');
             if ((canvas || (window.EJS_emulator && window.EJS_emulator.started)) && !this.gameReadyDismissed) {
-                this.dismissLoadingOverlay();
+                this.dismissStartOverlay();
             }
         };
 
-        // Mutation Observer on game viewport
         try {
-            this.progressObserver = new MutationObserver(checkProgress);
-            this.progressObserver.observe(viewport, { childList: true, subtree: true, characterData: true });
+            this.progressObserver = new MutationObserver(checkReady);
+            this.progressObserver.observe(viewport, { childList: true, subtree: true });
         } catch (_) {}
 
-        // Fallback polling interval
-        this.startupCheckInterval = setInterval(checkProgress, 200);
-
-        // After 4.5 seconds, reveal the force enter button in case audio policy or prompt is waiting
-        setTimeout(() => {
-            if (!this.gameReadyDismissed && this.elements.btnForceEnter) {
-                this.elements.btnForceEnter.style.display = 'inline-flex';
-                if (this.elements.loadingSubtext) {
-                    this.elements.loadingSubtext.textContent = 'Engine ready! Tap below if video does not auto-enter.';
-                }
-            }
-        }, 4500);
+        this.startupCheckInterval = setInterval(checkReady, 80);
     }
 
-    dismissLoadingOverlay() {
+    dismissStartOverlay() {
         if (this.gameReadyDismissed) return;
         this.gameReadyDismissed = true;
 
@@ -514,45 +512,15 @@ class DinoArcadeApp {
             this.progressObserver = null;
         }
 
-        this.setLoadingProgress(100, 'Game Ready!', 'Entering 60 FPS arcade screen...');
-        setTimeout(() => {
-            if (this.elements.loadingOverlay) {
-                this.elements.loadingOverlay.classList.add('hidden');
-            }
-            if (this.elements.liveHud) {
-                this.elements.liveHud.classList.remove('hidden');
-            }
-            this.focusGameCanvas();
-            this.applyActiveCheats();
-            this.showToast('🦖 Cadillacs & Dinosaurs Ready! Click 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
-        }, 300);
-    }
-
-    forceEnterGame() {
-        if (window.arcadeSFX) window.arcadeSFX.playStartSound();
-
-        // Trigger EmulatorJS internal start button if waiting
-        const ejsStartBtn = this.elements.gameViewport?.querySelector('.ejs_start_button, [class*="start"], button');
-        if (ejsStartBtn) {
-            try { ejsStartBtn.click(); } catch (_) {}
+        if (this.elements.startOverlay) {
+            this.elements.startOverlay.classList.add('hidden');
         }
-        if (window.EJS_emulator && typeof window.EJS_emulator.startButtonClicked === 'function') {
-            try { window.EJS_emulator.startButtonClicked(ejsStartBtn || {}); } catch (_) {}
+        if (this.elements.liveHud) {
+            this.elements.liveHud.classList.remove('hidden');
         }
-
-        this.dismissLoadingOverlay();
-    }
-
-    setLoadingProgress(percent, message, submessage) {
-        if (this.elements.loadingProgress) {
-            this.elements.loadingProgress.style.width = `${percent}%`;
-        }
-        if (this.elements.loadingText && message) {
-            this.elements.loadingText.textContent = message;
-        }
-        if (this.elements.loadingSubtext && submessage) {
-            this.elements.loadingSubtext.textContent = submessage;
-        }
+        this.focusGameCanvas();
+        this.applyActiveCheats();
+        this.showToast('🦖 Cadillacs & Dinosaurs Ready! Press 🪙 Coin (5) then ▶ 1P Start (1 / Enter)', 'success');
     }
 
     toggleCheat(type) {

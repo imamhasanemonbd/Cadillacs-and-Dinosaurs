@@ -126,74 +126,29 @@
             <!-- Realistic CRT Scanlines & Tube Curved Overlay -->
             <div id="crt-overlay" class="crt-active"></div>
 
-            <!-- Start Game Splash Card Overlay -->
+            <!-- Clean Minimalist Start Card Overlay -->
             <div id="start-overlay" class="overlay-curtain">
-                <div class="start-hero-card">
-                    <p class="hero-subtitle">★ 1993 CAPCOM CLASSIC ARCADE ★</p>
-                    <h2 class="hero-main-title">CADILLACS <span style="color: var(--neon-amber);">&</span> DINOSAURS</h2>
-                    <p class="hero-tagline">Playable instantly in your browser at 60 FPS • Fullscreen on any device</p>
+                <div class="clean-start-card">
+                    <div class="card-badge">CAPCOM • 1993</div>
+                    <h2 class="card-game-title">CADILLACS <span class="title-amp">&</span> DINOSAURS</h2>
+                    <p class="card-subtext">Arcade Beat 'Em Up • 60 FPS Emulation</p>
 
-                    <!-- 4 Iconic Characters Preview -->
-                    <div class="character-roster-preview">
-                        <div class="roster-item" title="Mustapha Cairo - The Flying Kick Master">
-                            <span class="roster-icon">⚡</span>
-                            <span class="roster-name">Mustapha</span>
-                            <span class="roster-role">Speed King</span>
-                        </div>
-                        <div class="roster-item" title="Jack Tenrec - Balanced Mechanic">
-                            <span class="roster-icon">🔧</span>
-                            <span class="roster-name">Jack</span>
-                            <span class="roster-role">All-Around</span>
-                        </div>
-                        <div class="roster-item" title="Hannah Dundee - Agile Knife Specialist">
-                            <span class="roster-icon">🗡️</span>
-                            <span class="roster-name">Hannah</span>
-                            <span class="roster-role">Agile Tech</span>
-                        </div>
-                        <div class="roster-item" title="Mess O'Bradovich - Heavy Grappler">
-                            <span class="roster-icon">💥</span>
-                            <span class="roster-name">Mess</span>
-                            <span class="roster-role">Powerhouse</span>
-                        </div>
-                    </div>
-
-                    <!-- Big Launch Button -->
-                    <button id="btn-start-game" class="btn-arcade-launch">
-                        <span>▶</span>
-                        <span>START ARCADE (60 FPS)</span>
+                    <!-- Simple Clean Play Button -->
+                    <button id="btn-start-game" class="btn-play-clean">
+                        <span class="btn-play-icon">▶</span>
+                        <span class="btn-play-label">PLAY GAME</span>
                     </button>
 
-                    <!-- Quick Shortcuts Hint -->
-                    <div class="hero-shortcuts-hint">
-                        <span><span class="shortcut-tag">5</span> Insert Coin</span>
-                        <span><span class="shortcut-tag">1</span> 1P Start</span>
-                        <span><span class="shortcut-tag">WASD</span> Move</span>
-                        <span><span class="shortcut-tag">J / Z</span> Attack</span>
-                        <span><span class="shortcut-tag">K / X</span> Jump</span>
-                        <span><span class="shortcut-tag">🎮</span> Gamepad Ready</span>
+                    <!-- Real-time Download Progress (Visible when downloading ROM) -->
+                    <div id="download-progress-container" class="download-progress-box hidden">
+                        <div class="progress-info-row">
+                            <span id="download-status-label" class="progress-status">Downloading dino.zip</span>
+                            <span id="download-mb-label" class="progress-mb">0.0 MB / 3.8 MB (0%)</span>
+                        </div>
+                        <div class="progress-track-clean">
+                            <div id="download-progress-fill" class="progress-fill-clean"></div>
+                        </div>
                     </div>
-
-                    <!-- Custom ROM Option -->
-                    <p class="custom-rom-note">
-                        Default ROM (World 930201) preloaded. Or <label for="custom-rom-input" class="custom-rom-link">drop a custom ROM .zip</label>
-                        <input type="file" id="custom-rom-input" accept=".zip" style="display: none;">
-                    </p>
-                </div>
-            </div>
-
-            <!-- Loading & Caching Screen Overlay -->
-            <div id="loading-overlay" class="overlay-curtain hidden">
-                <div class="loading-box">
-                    <div class="loading-dino-icon">🦖</div>
-                    <h3 class="loading-title">INITIALIZING CAPCOM CPS-1.5</h3>
-                    <div class="progress-track">
-                        <div id="loading-progress-bar"></div>
-                    </div>
-                    <p id="loading-text">Preparing WebAssembly Engine...</p>
-                    <p id="loading-subtext" class="loading-subtext">Fetching core engine and arcade ROM...</p>
-                    <button id="btn-force-enter-game" class="btn-force-enter" style="display: none;" title="Bypass loader and enter game">
-                        <span>▶</span> ENTER GAME NOW
-                    </button>
                 </div>
             </div>
 
