@@ -2,16 +2,16 @@
 window.setupGameFullscreen = () => {
     const hostDocument = window.top.document;
     const root = hostDocument.documentElement;
-    const standalone = navigator.standalone || window.top.matchMedia('(display-mode: standalone)').matches;
-    // Home Screen apps already hide browser chrome; iOS provides their exit gesture.
-    if (standalone) return;
+    const standalone = window.top.navigator.standalone || window.top.matchMedia('(display-mode: standalone)').matches;
     const button = document.createElement('button');
     button.id = 'game-fullscreen';
     button.type = 'button';
     const help = document.createElement('p');
     help.id = 'fullscreen-help';
     help.hidden = true;
-    help.textContent = 'For a game without browser bars on iPhone: Safari → Share → Add to Home Screen → Open as Web App. Then open Dino Arcade from your Home Screen. Swipe Home to exit.';
+    help.textContent = standalone
+        ? 'This Home Screen app already runs without Safari bars. This iPhone does not allow games to enter a further fullscreen mode or hide iOS system indicators. Swipe Home to exit.'
+        : 'For a game without browser bars on iPhone: Safari → Share → Add to Home Screen → Open as Web App. Then open Dino Arcade from your Home Screen. Swipe Home to exit.';
     const update = () => {
         const active = !!(hostDocument.fullscreenElement || hostDocument.webkitFullscreenElement);
         button.textContent = active ? '×' : '⛶';

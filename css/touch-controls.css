@@ -308,7 +308,7 @@
 
 #game-fullscreen {
     position: fixed;
-    top: max(8px, env(safe-area-inset-top));
+    top: calc(56px + env(safe-area-inset-top, 0px));
     right: max(8px, env(safe-area-inset-right));
     z-index: 10000;
     width: 40px;
@@ -324,7 +324,7 @@
 #game-fullscreen.is-fullscreen { color: #00f5d4; }
 #fullscreen-help {
     position: fixed;
-    top: 56px;
+    top: calc(104px + env(safe-area-inset-top, 0px));
     right: 8px;
     z-index: 10000;
     width: min(320px, calc(100% - 16px));
@@ -333,4 +333,28 @@
     background: #10131a;
     color: white;
     font: 14px/1.5 sans-serif;
+}
+
+#game-system-controls {
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
+    z-index: 10000;
+    display: flex;
+    gap: 8px;
+}
+#game-system-controls button {
+    min-width: 44px;
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid #ffffff55;
+    border-radius: 8px;
+    background: #000b;
+    color: white;
+    font: 14px sans-serif;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+#game-system-controls button:active {
+    background: #334155;
 }
