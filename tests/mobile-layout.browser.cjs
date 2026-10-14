@@ -47,11 +47,19 @@ const assert = require('node:assert/strict');
         await game.waitForFunction(() => innerWidth === 844);
         await game.waitForFunction(() => document.querySelector('.b_x').getBoundingClientRect().width === 50);
         const wide = await game.locator('.ejs_canvas_parent').boundingBox();
-        assert.equal(wide.width,844); assert.equal(wide.height,390);
+        assert(Math.abs(wide.width / wide.height - 4/3) < 0.01);
+        assert.equal(wide.height,390);
+        assert(Math.abs(wide.x - (844-wide.width)/2) < 1);
+        const picture = await game.locator('.ejs_canvas').boundingBox();
+        assert(Math.abs(picture.width / picture.height - 4/3) < 0.01);
+        assert(picture.y >= 0 && picture.y + picture.height <= 390);
+        const button = await game.locator('.b_x').boundingBox();
+        assert(button.x > wide.x + wide.width); // controls stay in the full viewport
+
         assert(await game.evaluate(() => EJS_emulator === window.testEmulator && !EJS_emulator.paused));
         await page.setViewportSize({width:390,height:664});
         await game.waitForFunction(() => document.querySelector('.b_x').getBoundingClientRect().width === 62.5);
         assert.deepEqual(errors,[]);
-        console.log('PASS: portrait game/controls fit two phone sizes, native X/joystick input works, landscape fills viewport without restart, orientation layouts save independently.');
+        console.log('PASS: portrait game/controls fit two phone sizes, native X/joystick input works, landscape picture fits 4:3 without cropping or restart, orientation layouts save independently.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });

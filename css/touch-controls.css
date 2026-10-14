@@ -501,3 +501,16 @@
         transform: translateX(-50%);
     }
 }
+
+/* Fit the arcade's 4:3 picture inside landscape, leaving black side bars.
+   Keep the surrounding viewport full-size so native controls retain their places. */
+@media (orientation: landscape) {
+    .mobile-game-content #game-viewport .ejs_canvas_parent {
+        position: absolute;
+        left: 50%; top: 50%;
+        width: min(100%, calc(100dvh * 4 / 3));
+        height: min(100%, calc(100vw * 3 / 4));
+        transform: translate(-50%, -50%);
+        background: #000;
+    }
+}
