@@ -36,8 +36,8 @@
             for (const [key, value] of Object.entries(emulator.settings || {})) if (/^(fbneo|fba)[-_]/.test(key)) values[key] = value;
             return hash(new TextEncoder().encode(JSON.stringify(Object.entries(values).sort(([a], [b]) => a.localeCompare(b)))));
         };
-        const state = window.dinoMultiplayer = { busy: false, active: false, role: null, peer: null, channel: null, loop: null, epoch: 0 };
-        let closing = false, ready = false, remotePaused = false, pendingState = null;
+        const state = window.dinoMultiplayer = { busy: false, syncing: false, active: false, role: null, peer: null, channel: null, loop: null, epoch: 0 };
+        let closing = false, ready = false, remotePaused = false, pendingState = null, engaged = false;
         let chunks = [], received = 0, priorPre, priorPost, didRun = false, prime = null;
         let heartbeat, connectionTimer, snapshotTimer, gatheringCancel, operation = 0;
         let hashes = new Map(), remoteHashes = new Map(), resyncs = 0;
@@ -58,7 +58,7 @@
                 <button data-mp="copy">Copy code</button>
             </details>
             <div class="multiplayer-actions"><button data-mp="resync">Resync (host)</button><button data-mp="leave">Leave / cancel pairing</button></div>
-            <small>Scan QR accepts the host offer or reply automatically. Both scans are needed without a pairing service. Camera decoding happens on your device. Close this panel to play. Coin and Start apply to your own player. If a device is backgrounded, both games wait. This two-player test buffers 3 frames (about 50 ms at 60 FPS). Slow connections can pause play. Native settings, cheats and save loads are locked until you Leave.</small>`;
+            <small>Scan QR accepts the host offer or reply automatically. Both scans are needed without a pairing service. Camera decoding happens on your device. Your game keeps running while you exchange codes. Closing this panel cancels unfinished pairing. Once connected, close it to play. Coin and Start apply to your own player. If a device is backgrounded, both games wait. This two-player test buffers 3 frames (about 50 ms at 60 FPS). Slow connections can pause play. Native settings, cheats and save loads are locked until you Leave.</small>`;
         document.body.append(open, dialog);
         const input = dialog.querySelector('#multiplayer-input'), output = dialog.querySelector('#multiplayer-output');
         const status = dialog.querySelector('[role=status]');
@@ -84,6 +84,7 @@
             if (window.dinoApp?.buttonRefCounts) Object.keys(window.dinoApp.buttonRefCounts).forEach(index => { window.dinoApp.buttonRefCounts[index] = 0; });
         };
         const fail = message => {
+            if (!engaged) { leave(); say(message + ' Solo game continues.'); return; }
             ready = false; state.active = false;
             say(message); open.textContent = '2P · Paused';
         };
@@ -99,6 +100,12 @@
             if (emulator.isFastForward || emulator.isSlowMotion || emulator.rewindEnabled) throw new Error('Disable fast-forward, slow motion and rewind before pairing.');
             if (window.dinoApp?.cheats.immortal || window.dinoApp?.cheats.ammo || emulator.cheats?.some(cheat => cheat.checked)) throw new Error('Turn off cheats before pairing.');
             state.busy = true; state.role = role; state.epoch = 0; closing = false;
+        };
+        // Generating/scanning codes can take minutes. Freeze only once a peer
+        // connects and we actually need to synchronize the two game states.
+        const engage = () => {
+            if (engaged) return;
+            engaged = true; state.syncing = true;
             document.documentElement.classList.add('multiplayer-active');
             native.pause(true); release();
             priorPre = emulator.Module.dinoPreFrame; priorPost = emulator.Module.dinoPostFrame;
@@ -258,8 +265,9 @@
             let messages = Promise.resolve(), opened = false;
             channel.onmessage = event => { messages = messages.then(() => receive(event)); };
             const connected = () => {
-                if (opened) return;
+                if (opened || closing || state.channel !== channel) return;
                 opened = true;
+                engage();
                 say('Direct connection established. Synchronizing the host’s game…');
                 send({ t: 'hello', build: BUILD, settings: settingsSignature() });
                 heartbeat = setInterval(() => send({ t: 'ping', at: performance.now() }), 2000);
@@ -273,7 +281,7 @@
             const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
             state.peer = pc;
             pc.onconnectionstatechange = () => {
-                if (!closing && ['failed', 'disconnected'].includes(pc.connectionState)) fail('Connection interrupted. Game paused; leave and pair again.');
+                if (!closing && state.peer === pc && ['failed', 'disconnected'].includes(pc.connectionState)) fail('Connection interrupted. Game paused; leave and pair again.');
             };
             connectionTimer = setTimeout(() => { if (!state.active) fail('Pairing timed out. Leave and create fresh codes on the same Wi-Fi.'); }, 600000);
             return pc;
@@ -315,11 +323,12 @@
             operation++; closing = true; qr.clear(); gatheringCancel?.();
             ready = false; prime = null; state.active = false; clearInterval(heartbeat); clearTimeout(connectionTimer); clearTimeout(snapshotTimer);
             state.channel?.close(); state.peer?.close();
-            if (state.busy) {
+            if (engaged) {
                 emulator.Module.dinoPreFrame = priorPre; emulator.Module.dinoPostFrame = priorPost;
                 guarded.splice(0).forEach(restore => restore()); gm.simulateInput = native.input;
                 release(); state.busy = false; native.play(true);
             }
+            engaged = false; state.syncing = false; state.busy = false; state.role = null;
             state.peer = null; state.channel = null; state.loop = null; pendingState = null; chunks = [];
             remotePaused = false; transferring = false;
             document.documentElement.classList.remove('multiplayer-active'); output.value = ''; input.value = '';
@@ -328,8 +337,11 @@
             open.textContent = '2P Connect'; say('Not connected. Create or join a new game.');
         };
         open.addEventListener('click', () => dialog.showModal());
+        dialog.addEventListener('close', () => {
+            if (state.busy && !engaged) leave();
+        });
         dialog.querySelectorAll('[data-mp]').forEach(button => button.addEventListener('click', async () => {
-            const current = operation;
+            const current = operation, wasBusy = state.busy;
             try {
                 if (button.dataset.mp === 'qr-show') await qr.show(output.value);
                 if (button.dataset.mp === 'qr-scan') await qr.scan();
@@ -343,7 +355,12 @@
                     try { await navigator.clipboard.writeText(output.value); say('Code copied. Send the complete code to the other player.'); }
                     catch (_) { output.focus(); output.select(); say('Code selected. Use Copy, then send it to the other player.'); }
                 }
-            } catch (error) { if (current === operation) say(error.message); }
+            } catch (error) {
+                if (current === operation) {
+                    if (!wasBusy && state.busy && !engaged) leave();
+                    say(error.message);
+                }
+            }
         }));
         // Game hotkeys use capture listeners; explicitly exclude this panel in app.js.
         for (const name of ['keydown', 'keyup', 'pointerdown', 'touchstart', 'touchend', 'click']) dialog.addEventListener(name, event => event.stopPropagation());

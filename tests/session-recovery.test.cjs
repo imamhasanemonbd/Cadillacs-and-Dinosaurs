@@ -59,7 +59,15 @@ test('an intentional native restart clears the old recovery checkpoint', () => {
 });
 
 test('local recovery never saves, pauses, or resumes an active multiplayer session', () => {
-    const env = setup(); env.context.window.dinoMultiplayer = { busy: true };
+    const env = setup(); env.context.window.dinoMultiplayer = { busy: true, syncing: true };
     env.timers[0](); env.events.pagehide(); env.events.pageshow();
     assert.equal(env.storage.size, 0); assert.deepEqual(env.calls, []);
+});
+
+test('pending pairing retains normal background pause and recovery', () => {
+    const env = setup(); env.context.window.dinoMultiplayer = { busy: true, syncing: false };
+    env.context.document.hidden = true; env.events.visibilitychange();
+    assert.equal(env.emulator.paused, true);
+    env.context.document.hidden = false; env.events.visibilitychange();
+    assert.equal(env.emulator.paused, false);
 });

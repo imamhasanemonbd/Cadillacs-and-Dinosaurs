@@ -13,7 +13,7 @@ window.setupSessionRecovery = (emulator, rom) => {
         if (app?.buttonRefCounts) Object.keys(app.buttonRefCounts).forEach(index => { app.buttonRefCounts[index] = 0; });
     };
     const save = () => {
-        if (!emulator.started || window.dinoMultiplayer?.busy) return;
+        if (!emulator.started || window.dinoMultiplayer?.syncing) return;
         try {
             const state = emulator.gameManager.getState();
             if (!state?.length || state.length > maxBytes) return;
@@ -48,13 +48,13 @@ window.setupSessionRecovery = (emulator, rom) => {
         };
     }
     const suspend = () => {
-        if (!emulator.started || window.dinoMultiplayer?.busy) return;
+        if (!emulator.started || window.dinoMultiplayer?.syncing) return;
         releaseInputs();
         save();
         if (!emulator.paused) { emulator.pause(true); pausedByApp = true; }
     };
     const resume = () => {
-        if (window.dinoMultiplayer?.busy) return;
+        if (window.dinoMultiplayer?.syncing) return;
         if (pausedByApp) { pausedByApp = false; emulator.play(true); }
     };
     document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); else resume(); });
