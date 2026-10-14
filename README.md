@@ -153,9 +153,11 @@ Install dependencies with `npm install`, then run regression checks with `npm te
 
 ### Home Screen session recovery
 
-Backgrounding the app saves a checkpoint and pauses the game; foregrounding resumes it without navigation. A lightweight checkpoint is also saved every 15 seconds. If the operating system discards the app process, the next launch restores the latest checkpoint for the same ROM (up to 24 hours old). Reloading also restores this checkpoint; use **Restart** in the native emulator menu to start fresh. Existing manual save states and control layouts are unchanged.
+Backgrounding the app saves a checkpoint and pauses the game; foregrounding resumes it without navigation. A lightweight checkpoint is also saved every 5 seconds. If the operating system discards the app process, the next launch restores the latest checkpoint for the same ROM (up to 24 hours old). Reloading also restores this checkpoint; use **Restart** in the native emulator menu to start fresh. Existing manual save states and control layouts are unchanged.
 
-Websites cannot prevent iOS from terminating their processes under memory pressure. Recovery can lose up to 15 seconds of progress if the process is killed without a background event, and requires available site storage. The mobile CRT compositing layer is disabled to reduce graphics overhead.
+Websites cannot prevent iOS from terminating their processes under memory pressure. Recovery normally loses around 5 seconds of progress (browser timer throttling can increase this) if the process is killed without a background event, and requires available site storage. The mobile CRT compositing layer is disabled to reduce graphics overhead. Browser pull-to-refresh scroll chaining is disabled on the game page.
+
+For unexpected restarts, `window.dinoSessionDiagnostics` in the game iframe contains the previous and current session, last successful checkpoint, storage/runtime errors, and sampled WebAssembly heap size. The bounded record is stored locally as `dino-session-diagnostics-v1`; nothing is uploaded. A previous running session without a pagehide event suggests an abrupt exit, but does not establish whether iOS memory pressure or a WebKit crash caused it. Confirm process termination with the iPhone analytics/Jetsam report or Safari Web Inspector. Active multiplayer still requires pairing again after process termination.
 
 
 ## Two-player Wi-Fi prototype (no paid server)
@@ -183,7 +185,7 @@ Physical iPhone/Safari and hotspot compatibility still need device testing. Brow
 
 ### Browser regression
 
-With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm test` runs the network-independent startup, recovery and lockstep unit tests.
+With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm run test:recovery-browser` verifies real save-state restoration byte-for-byte after a mobile page is recreated. `npm test` runs the network-independent startup, recovery and lockstep unit tests.
 
 
 QR regressions: `npm run test:qr-browser` exercises camera-denial fallback, real QR decoding through a synthetic video stream, automatic two-scan connection, synchronized gameplay, and camera-track cleanup. Physical camera testing on iPhone/Mac remains necessary. `npm run vendor:qr` refreshes bundled source from the pinned npm packages; retain the accompanying license notices in `js/vendor/`.

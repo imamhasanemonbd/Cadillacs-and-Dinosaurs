@@ -27,7 +27,7 @@ test('checkpoints recover game progress after a new document is created', () => 
 });
 test('backgrounding saves and pauses, foregrounding resumes without reinitializing', () => {
     const env = setup(); env.context.document.hidden = true; env.events.visibilitychange();
-    assert.equal(env.storage.size, 1); assert.equal(env.emulator.paused, true);
+    assert.equal(env.storage.has('dino-game-recovery-v1'), true); assert.equal(env.emulator.paused, true);
     env.events.pagehide(); env.context.document.hidden = false; env.events.visibilitychange(); env.events.pageshow();
     assert.deepEqual(env.calls, [['pause'], ['play']]);
 });
@@ -53,15 +53,15 @@ test('duplicate setup never creates another checkpoint timer', () => {
 });
 
 test('an intentional native restart clears the old recovery checkpoint', () => {
-    const env = setup(); env.timers[0](); assert.equal(env.storage.size, 1);
-    env.emulator.gameManager.restart(); assert.equal(env.storage.size, 0);
+    const env = setup(); env.timers[0](); assert.equal(env.storage.has('dino-game-recovery-v1'), true);
+    env.emulator.gameManager.restart(); assert.equal(env.storage.has('dino-game-recovery-v1'), false);
     assert.deepEqual(env.calls, [['restart']]);
 });
 
 test('local recovery never saves, pauses, or resumes an active multiplayer session', () => {
     const env = setup(); env.context.window.dinoMultiplayer = { busy: true, syncing: true };
     env.timers[0](); env.events.pagehide(); env.events.pageshow();
-    assert.equal(env.storage.size, 0); assert.deepEqual(env.calls, []);
+    assert.equal(env.storage.has('dino-game-recovery-v1'), false); assert.deepEqual(env.calls, []);
 });
 
 test('pending pairing retains normal background pause and recovery', () => {
@@ -69,5 +69,24 @@ test('pending pairing retains normal background pause and recovery', () => {
     env.context.document.hidden = true; env.events.visibilitychange();
     assert.equal(env.emulator.paused, true);
     env.context.document.hidden = false; env.events.visibilitychange();
+    assert.equal(env.emulator.paused, false);
+});
+
+test('diagnostics retain one preceding session and report successful recovery', () => {
+    const first = setup(); first.timers[0]();
+    const next = setup(first.storage);
+    assert.equal(next.context.window.dinoSessionDiagnostics.previous.phase, 'running');
+    assert.equal(next.context.window.dinoSessionDiagnostics.current.restored, true);
+    const third = setup(next.storage);
+    assert.equal(third.context.window.dinoSessionDiagnostics.previous.restored, true);
+    assert.equal(third.context.window.dinoSessionDiagnostics.previous.previous, undefined);
+});
+test('storage and runtime failures are recorded without interrupting gameplay', () => {
+    const env = setup();
+    env.localStorage.setItem = () => { throw new Error('quota'); };
+    assert.doesNotThrow(env.timers[0]);
+    assert.equal(env.context.window.dinoSessionDiagnostics.current.storageError, 'quota');
+    env.events.error({message:'runtime failed'});
+    assert.equal(env.context.window.dinoSessionDiagnostics.current.error, 'runtime failed');
     assert.equal(env.emulator.paused, false);
 });
