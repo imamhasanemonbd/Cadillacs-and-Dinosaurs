@@ -281,7 +281,7 @@
     }
 }
 
-/* The outer frame rotates the whole emulator, including its native controls. */
+/* The mobile frame follows the real viewport without rotating camera or input. */
 #mobile-game-frame {
     position: fixed;
     border: 0;
@@ -465,4 +465,39 @@
 .mobile-game-content .pairing-camera-viewport.rotated-camera video {
     width: var(--preview-height);
     height: var(--preview-width);
+}
+
+/* Portrait handheld: screen above, existing native controls below. */
+@media (orientation: portrait) {
+    .mobile-game-content #game-viewport {
+        background: linear-gradient(160deg, #242a3b 48%, #111522 100%);
+    }
+    .mobile-game-content #game-viewport .ejs_canvas_parent {
+        position: absolute;
+        top: max(56px, env(safe-area-inset-top, 0px));
+        left: 0;
+        width: 100%;
+        height: calc(48% - max(56px, env(safe-area-inset-top, 0px)));
+        background: #000;
+        border-bottom: 3px solid #394058;
+    }
+    .mobile-game-content .ejs_virtualGamepad_parent {
+        position: fixed;
+        left: 0; bottom: 0;
+        width: 100%; height: 50dvh;
+    }
+    .mobile-game-content .ejs_virtualGamepad_left {
+        left: max(16px, 6vw);
+        bottom: max(64px, 14dvh);
+    }
+    .mobile-game-content .ejs_virtualGamepad_right {
+        right: max(16px, 6vw);
+        bottom: max(64px, 14dvh);
+    }
+    .mobile-game-content #game-system-controls {
+        position: fixed;
+        top: 52dvh;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }

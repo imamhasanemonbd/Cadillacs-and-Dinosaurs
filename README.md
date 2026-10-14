@@ -189,3 +189,7 @@ With Node.js 20 or later, after `npm install`, run `npx playwright install chrom
 
 
 QR regressions: `npm run test:qr-browser` exercises camera-denial fallback, real QR decoding through a synthetic video stream, automatic two-scan connection, synchronized gameplay, and camera-track cleanup. Physical camera testing on iPhone/Mac remains necessary. `npm run vendor:qr` refreshes bundled source from the pinned npm packages; retain the accompanying license notices in `js/vendor/`.
+
+### Mobile portrait and landscape
+
+Portrait uses a handheld layout: the game fills the upper section and the existing native joystick, X/Y, Coin and Start controls sit below it. Turning the phone sideways fills the available landscape viewport without reloading or rotating the camera. Portrait and landscape control layouts save separately; existing custom layouts remain the landscape layout. The Home Screen manifest allows both orientations. Browser-bar fullscreen still uses the existing fullscreen icon where supported; iPhone needs the Home Screen web app to hide Safari bars.

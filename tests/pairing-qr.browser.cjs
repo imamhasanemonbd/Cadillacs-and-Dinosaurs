@@ -68,7 +68,7 @@ const assert = require('node:assert/strict');
         };
         const landscapePreview = () => {
             const box = document.querySelector('.pairing-camera-viewport');
-            return innerWidth > innerHeight && box.clientWidth > box.clientHeight && getComputedStyle(document.querySelector('video')).transform !== 'none';
+            return box.clientWidth > box.clientHeight && getComputedStyle(document.querySelector('video')).transform !== 'none';
         };
         assert.equal(await host.evaluate(() => getComputedStyle(document.querySelector('.pairing-camera-viewport video')).transform), 'none');
         assert.equal(await guest.evaluate(landscapePreview), true);
@@ -81,7 +81,7 @@ const assert = require('node:assert/strict');
         await guest.waitForFunction(() => document.querySelector('video').videoWidth > document.querySelector('video').videoHeight && !document.querySelector('.portrait-camera'));
         assert.equal(await guest.evaluate(cameraUpright), true);
         await pages[1].setViewportSize({width: 390, height: 664});
-        await guest.waitForFunction(() => innerWidth === 664);
+        await guest.waitForFunction(() => innerWidth === 390);
         assert.equal(await guest.evaluate(landscapePreview), true);
         assert.equal(await guest.evaluate(cameraUpright), true);
         await guest.locator('[aria-label="Close multiplayer panel"]').click();

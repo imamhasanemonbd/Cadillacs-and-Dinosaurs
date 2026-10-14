@@ -542,7 +542,13 @@ class DinoArcadeApp {
             this.dismissStartOverlay();
             window.setupSessionRecovery(window.EJS_emulator, this.romUrl);
             window.setupMultiplayer(window.EJS_emulator);
-            requestAnimationFrame(() => window.refreshControlLayout?.());
+            requestAnimationFrame(() => {
+                if (document.documentElement.classList.contains('mobile-game-content')) {
+                    window.EJS_emulator.menu?.close();
+                    window.EJS_emulator.toggleVirtualGamepad?.(true);
+                }
+                window.refreshControlLayout?.();
+            });
         };
 
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
@@ -1074,8 +1080,7 @@ class DinoArcadeApp {
 document.addEventListener('DOMContentLoaded', () => {
     const touchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (touchDevice && !new URLSearchParams(location.search).has('landscape-frame')) {
-        // An iframe gives native controls landscape-local touch coordinates even
-        // when Safari displays the entire frame rotated in a portrait viewport.
+        // Keep the game document stable while the phone changes orientation.
         const frame = document.createElement('iframe');
         const url = new URL(location.href);
         url.searchParams.set('landscape-frame', '1');
@@ -1088,15 +1093,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const viewport = window.visualViewport;
             const width = viewport ? viewport.width : window.innerWidth;
             const height = viewport ? viewport.height : window.innerHeight;
-            const rotated = height > width;
             Object.assign(frame.style, {
-                width: `${rotated ? height : width}px`,
-                height: `${rotated ? width : height}px`,
-                left: `${(viewport?.offsetLeft || 0) + (rotated ? width : 0)}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+                left: `${viewport?.offsetLeft || 0}px`,
                 top: `${viewport?.offsetTop || 0}px`,
-                transform: rotated ? 'rotate(90deg)' : 'none'
+                transform: 'none'
             });
-            frame.dataset.gameRotation = rotated ? '90' : '0';
+            frame.dataset.gameRotation = '0';
             // Keep camera pixels aligned with the physical screen, not this frame.
             frame.contentWindow?.dispatchEvent(new Event('dino-frame-rotation'));
         };

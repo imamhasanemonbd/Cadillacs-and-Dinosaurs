@@ -25,8 +25,13 @@
 
     window.setupControlLayout = () => {
         if (document.getElementById('control-layout-open')) return;
-        let saved = {};
-        try { saved = validate(JSON.parse(localStorage.getItem(STORAGE_KEY))); } catch (_) {}
+        const portrait = window.matchMedia('(orientation: portrait)');
+        const layoutKey = () => document.documentElement.classList.contains('mobile-game-content') && portrait.matches ? STORAGE_KEY + '-portrait' : STORAGE_KEY;
+        let activeKey = layoutKey();
+        const readLayout = () => {
+            try { return validate(JSON.parse(localStorage.getItem(activeKey))); } catch (_) { return {}; }
+        };
+        let saved = readLayout();
         let draft = copy(saved);
         let editing = false;
         let selected = 'coin';
@@ -236,7 +241,7 @@
         form.addEventListener('submit', event => {
             event.preventDefault();
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(validate(draft)));
+                localStorage.setItem(activeKey, JSON.stringify(validate(draft)));
                 saved = validate(draft);
                 finish();
             } catch (_) { status.textContent = 'Storage is unavailable. Allow site storage to save your layout.'; }
@@ -250,7 +255,14 @@
         for (const name of ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointermove', 'pointerup', 'click', 'keydown', 'keyup']) {
             editor.addEventListener(name, event => event.stopPropagation());
         }
-        window.addEventListener('resize', () => { drag = null; discover(); apply(); });
+        window.addEventListener('resize', () => {
+            drag = null;
+            if (activeKey !== layoutKey()) {
+                activeKey = layoutKey(); saved = readLayout(); draft = copy(saved);
+                if (editing) finish();
+            }
+            discover(); apply();
+        });
         window.refreshControlLayout = discover;
         let pending = false;
         new MutationObserver(() => {
