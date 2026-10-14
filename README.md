@@ -140,3 +140,12 @@ This project is 100% client-side static web code and can be hosted for free anyw
 * Comics created by Mark Schultz (*Xenozoic Tales*).
 * This project is an educational, open-source demonstration of modern WebAssembly emulation, Web Audio API, and cross-platform web capabilities.
 * Licensed under the **MIT License**.
+
+
+## Startup reliability
+
+The game automatically starts after startup guards are installed for EmulatorJS 4.2.3. Failed or stalled cache validation falls back to downloading; interrupted core and ROM downloads retry once. Cache reads have a deadline, while saved games, save states, and control layouts are preserved. Optional font and language downloads do not block startup.
+
+The first visit still needs to download, decompress, and initialize the arcade WebAssembly core. Safari may require a real touch to enable audio; tapping any existing control resumes suspended audio without changing the game's pause state.
+
+Run startup regression checks with `npm test` (Node.js 18 or later).

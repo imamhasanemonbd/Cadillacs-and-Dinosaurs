@@ -517,8 +517,21 @@ class DinoArcadeApp {
                 left: 80, top: 10, bold: true, input_value: 0
             }
         ];
-        window.EJS_startOnLoaded = true;
-        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+        // Start automatically after installing network/cache guards, before any
+        // core or ROM requests. The native Play screen is never shown to users.
+        window.EJS_startOnLoaded = false;
+        window.EJS_ready = () => {
+            const emulator = window.EJS_emulator;
+            if (!emulator || this.emulatorBootRequested) return;
+            this.emulatorBootRequested = true;
+            window.prepareEmulatorStartup(emulator);
+            const button = document.querySelector('#game-viewport .ejs_start_button');
+            if (button) emulator.startButtonClicked(button);
+        };
+        // This pinned loader uses false to skip automatic language fetching.
+        window.EJS_language = 'en-US';
+        window.EJS_disableAutoLang = false;
+        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/4.2.3/data/';
         window.EJS_gameUrl = romUrlOrBlob;
         window.EJS_fullscreenOnLoaded = false;
         window.EJS_volume = 0.9;
@@ -533,11 +546,19 @@ class DinoArcadeApp {
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
         window.EJS_onSaveState = () => this.showToast('💾 State Saved Successfully', 'info');
 
-        // Dynamically load EmulatorJS loader script
-        const script = document.createElement('script');
-        script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
-        script.async = true;
-        document.body.appendChild(script);
+        // Retry a transient CDN failure without asking users to reload the page.
+        const loadRuntime = (attempt = 0) => {
+            const script = document.createElement('script');
+            script.src = window.EJS_pathtodata + 'loader.js';
+            script.async = true;
+            script.onerror = () => {
+                script.remove();
+                if (attempt === 0) loadRuntime(1);
+                else this.elements.gameViewport.textContent = 'The arcade engine could not be downloaded. Check your connection and reload.';
+            };
+            document.body.appendChild(script);
+        };
+        loadRuntime();
     }
 
     dismissStartOverlay() {

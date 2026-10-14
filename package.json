@@ -6,7 +6,8 @@
   "scripts": {
     "start": "npx serve -l 3000 .",
     "dev": "npx serve -l 3000 .",
-    "serve:py": "python3 -m http.server 3000"
+    "serve:py": "python3 -m http.server 3000",
+    "test": "node --test tests/*.test.cjs"
   },
   "keywords": [
     "cadillacs-and-dinosaurs",

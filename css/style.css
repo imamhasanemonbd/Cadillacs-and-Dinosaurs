@@ -2,7 +2,6 @@
    Cadillacs and Dinosaurs - Retro Arcade Design System & Core Stylesheet
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Outfit:wght@300;400;600;700&family=Press+Start+2P&display=swap');
 
 :root {
     --bg-dark: #07090e;
@@ -1080,3 +1079,6 @@ html, body {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* Automatic startup waits for the runtime guards, not for a Play click. */
+#game-viewport .ejs_start_button { visibility: hidden; }
