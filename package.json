@@ -7,7 +7,8 @@
     "start": "npx serve -l 3000 .",
     "dev": "npx serve -l 3000 .",
     "serve:py": "python3 -m http.server 3000",
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "test:browser": "node tests/multiplayer.browser.cjs"
   },
   "keywords": [
     "cadillacs-and-dinosaurs",
@@ -21,5 +22,8 @@
     "fbneo"
   ],
   "author": "Imam Hasan",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
 }

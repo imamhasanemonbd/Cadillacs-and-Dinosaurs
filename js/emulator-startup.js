@@ -18,6 +18,23 @@
         // The pinned runtime polls Safari audio every 10 ms behind a blocking
         // resume popup. Keep autoplay visible and unlock audio on existing controls.
         emulator.checkStarted = resumeAudio;
+        // Emscripten captures these callbacks during runtime creation. Install
+        // stable dispatchers now so LAN play can attach frame hooks later.
+        if (typeof emulator.initModule === 'function') {
+            const init = emulator.initModule;
+            emulator.initModule = function(...args) {
+                const runtime = window.EJS_Runtime;
+                window.EJS_Runtime = options => {
+                    let module;
+                    return runtime({ ...options,
+                        preMainLoop: () => options.preMainLoop?.() === false ? false : module?.dinoPreFrame?.(),
+                        postMainLoop: () => { options.postMainLoop?.(); module?.dinoPostFrame?.(); }
+                    }).then(result => { module = result; module.dinoFrameHooks = true; return module; });
+                };
+                try { return init.apply(this, args); }
+                finally { window.EJS_Runtime = runtime; }
+            };
+        }
         // Cache reads are optional. A blocked IndexedDB request must not stop boot.
         // Writes and save-state storage stay untouched, preserving existing saves.
         for (const name of ['core', 'rom', 'bios']) {

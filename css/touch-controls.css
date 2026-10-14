@@ -421,3 +421,15 @@
 
 /* Avoid an extra full-screen compositing layer on memory-constrained phones. */
 .mobile-game-content #crt-overlay { display: none; }
+
+#multiplayer-open { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 10003; padding: 8px 12px; min-height: 40px; border: 1px solid #ffffff55; border-radius: 8px; color: white; background: #152539dd; font: 14px sans-serif; touch-action: manipulation; }
+#multiplayer-dialog { position: fixed; inset: 0; margin: auto; width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; padding: 16px; border: 1px solid #526375; border-radius: 12px; background: #111a27; color: white; font: 14px/1.5 sans-serif; }
+#multiplayer-dialog::backdrop { background: #0009; }
+#multiplayer-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+#multiplayer-dialog p, #multiplayer-dialog label { display: block; margin: 10px 0; }
+#multiplayer-dialog textarea { display: block; box-sizing: border-box; width: 100%; min-height: 65px; padding: 8px; border: 1px solid #526375; border-radius: 6px; background: #07101c; color: white; font: 16px monospace; resize: vertical; }
+#multiplayer-dialog button { min-height: 40px; padding: 6px 12px; border: 1px solid #526375; border-radius: 6px; background: #26394e; color: white; font: inherit; touch-action: manipulation; }
+.multiplayer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.multiplayer-status { color: #5eead4; }
+#multiplayer-dialog small { display: block; margin-top: 12px; color: #cbd5e1; }
+.multiplayer-active .ejs_menu_bar { pointer-events: none; opacity: .4; }

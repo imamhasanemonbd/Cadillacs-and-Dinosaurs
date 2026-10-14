@@ -245,7 +245,7 @@ class DinoArcadeApp {
 
         window.addEventListener('keydown', (e) => {
             // Prevent interference if user is in an input field
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target.closest?.('#multiplayer-dialog, #control-layout-editor') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
             // Hotkeys: Fullscreen (F), Cheats (G, U), Modals (Esc)
             if (e.key === 'g' || e.key === 'G') {
@@ -312,7 +312,7 @@ class DinoArcadeApp {
         }, { capture: true });
 
         window.addEventListener('keyup', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target.closest?.('#multiplayer-dialog, #control-layout-editor') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
             const normKey = e.code || e.key;
 
@@ -541,6 +541,7 @@ class DinoArcadeApp {
             console.log('[DINO] Game loop started at 60 FPS');
             this.dismissStartOverlay();
             window.setupSessionRecovery(window.EJS_emulator, this.romUrl);
+            window.setupMultiplayer(window.EJS_emulator);
             requestAnimationFrame(() => window.refreshControlLayout?.());
         };
 
@@ -763,6 +764,7 @@ class DinoArcadeApp {
     }
 
     toggleCheat(type) {
+        if (window.dinoMultiplayer?.busy) return;
         if (window.arcadeSFX) window.arcadeSFX.playClick();
 
         if (type === 'immortal') {

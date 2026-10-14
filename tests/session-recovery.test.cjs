@@ -57,3 +57,9 @@ test('an intentional native restart clears the old recovery checkpoint', () => {
     env.emulator.gameManager.restart(); assert.equal(env.storage.size, 0);
     assert.deepEqual(env.calls, [['restart']]);
 });
+
+test('local recovery never saves, pauses, or resumes an active multiplayer session', () => {
+    const env = setup(); env.context.window.dinoMultiplayer = { busy: true };
+    env.timers[0](); env.events.pagehide(); env.events.pageshow();
+    assert.equal(env.storage.size, 0); assert.deepEqual(env.calls, []);
+});

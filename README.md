@@ -156,3 +156,27 @@ Run startup regression checks with `npm test` (Node.js 18 or later).
 Backgrounding the app saves a checkpoint and pauses the game; foregrounding resumes it without navigation. A lightweight checkpoint is also saved every 15 seconds. If the operating system discards the app process, the next launch restores the latest checkpoint for the same ROM (up to 24 hours old). Reloading also restores this checkpoint; use **Restart** in the native emulator menu to start fresh. Existing manual save states and control layouts are unchanged.
 
 Websites cannot prevent iOS from terminating their processes under memory pressure. Recovery can lose up to 15 seconds of progress if the process is killed without a background event, and requires available site storage. The mobile CRT compositing layer is disabled to reduce graphics overhead.
+
+
+## Two-player Wi-Fi prototype (no paid server)
+
+This experimental mode pairs two browsers using copy/paste codes and exchanges inputs directly using WebRTC data channels. It works with static GitHub Pages hosting. No camera, room server or WebSocket backend is required. A public Google STUN service helps discover connection paths; it does not relay gameplay. There is no TURN relay, so some routers, guest networks, hotspots and VPNs will not connect. Start testing on the same Wi-Fi.
+
+### Test with Mac and iPhone
+
+1. Open the updated site on both devices and wait for the game to finish loading. For this first test, use the Mac as host and keep cheats, rewind, fast-forward and slow motion off.
+2. On the Mac, open **2P Connect**, tap **Create game (host)**, then **Copy code**. Send the complete `DINO1.…` code to your iPhone using Messages or your clipboard.
+3. On the iPhone, open **2P Connect**, paste the host code into the input box and tap **Join with host code**. Copy the reply and send it back to the Mac.
+4. On the Mac, paste that reply into the input box and tap **Accept reply (host)**. Codes expire after ten minutes; a new host code needs its own matching reply.
+5. Wait for Connected, then close both panels with **×**. The Mac controls Player 1 and the iPhone controls Player 2. Use **Coin**, then **Start**, on each device. Each device's existing joystick, buttons, keyboard and gamepad feed its own player.
+6. The top button shows network round-trip time (RTT), not total button-to-screen latency. Open it for **Resync (host)** or **Leave / cancel pairing**. Leaving restores solo controls without reloading the page.
+
+The host's current state is transferred to the guest. This is buffered frame lockstep, **not rollback netplay**: it adds three frames (about 50 ms at 60 FPS), and both devices wait when an input is missing. Backgrounding either device pauses shared progression. A disconnected session stays paused until you leave and pair again. There is no automatic page reload or multiplayer reconnect across an iOS process termination.
+
+Both peers must use the same ROM, runtime and core settings. Cheats, native pause/settings/reset and independent save loads are locked while paired; solo recovery checkpoints are suspended. Every 120 shared frames, the prototype compares the first 256 KiB of the tested 275,792-byte FBNeo save-state layout, covering frame metadata and a main/video RAM prefix. Device-dependent audio mixer history is excluded. This is a game-specific drift check, **not a full-core determinism guarantee**. Mismatches trigger bounded host-state resynchronization; repeated failure pauses the test instead of silently continuing apart. Three-player rooms and rollback are not implemented yet.
+
+Physical iPhone/Safari and hotspot compatibility still need device testing. Browser tests cover two separate contexts using the real ROM/core, matching frame progression and RAM checks, both players' inputs, background pause/resume, manual resync, disconnect and solo cleanup.
+
+### Browser regression
+
+With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm test` runs the network-independent startup, recovery and lockstep unit tests.

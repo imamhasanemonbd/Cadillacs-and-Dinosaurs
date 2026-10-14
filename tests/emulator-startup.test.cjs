@@ -108,3 +108,17 @@ test('Safari startup uses audio unlock without a blocking resume popup or pollin
     assert.equal(resumed, 1);
     assert.equal(env.timers.size, 0);
 });
+
+test('frame dispatchers are installed before Emscripten captures callbacks', async () => {
+    const env = setup(); let captured, frames = 0;
+    env.context.window.EJS_Runtime = options => { captured = options; return Promise.resolve({}); };
+    env.emulator.initModule = function() { return env.context.window.EJS_Runtime({}).then(module => { this.Module = module; }); };
+    const runtime = env.context.window.EJS_Runtime;
+    env.install(); await env.emulator.initModule();
+    assert.equal(env.context.window.EJS_Runtime, runtime);
+    assert.equal(env.emulator.Module.dinoFrameHooks, true);
+    env.emulator.Module.dinoPreFrame = () => false;
+    assert.equal(captured.preMainLoop(), false);
+    env.emulator.Module.dinoPostFrame = () => frames++;
+    captured.postMainLoop(); assert.equal(frames, 1);
+});
