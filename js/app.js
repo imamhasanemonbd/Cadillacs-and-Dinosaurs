@@ -540,6 +540,7 @@ class DinoArcadeApp {
         window.EJS_onGameStart = () => {
             console.log('[DINO] Game loop started at 60 FPS');
             this.dismissStartOverlay();
+            window.setupSessionRecovery(window.EJS_emulator, this.romUrl);
             requestAnimationFrame(() => window.refreshControlLayout?.());
         };
 
@@ -881,16 +882,10 @@ class DinoArcadeApp {
             return;
         }
 
-        const blobUrl = URL.createObjectURL(file);
-        this.romUrl = blobUrl;
-        this.showToast(`📁 Loaded custom ROM: ${file.name}`, 'success');
-
-        if (!this.gameStarted) {
-            this.startGame();
-        } else {
-            // Reload page with custom ROM
-            window.location.reload();
-        }
+        // Never reload an active game in response to a dropped ROM.
+        if (this.gameStarted) return;
+        this.romUrl = URL.createObjectURL(file);
+        this.startGame();
     }
 
     setupDropZone() {

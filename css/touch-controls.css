@@ -418,3 +418,6 @@
 .layout-actions { display: flex; gap: 8px; width: 100%; justify-content: flex-end; }
 .layout-actions button { min-height: 36px; padding: 0 14px; border: 1px solid #ffffff44; border-radius: 6px; background: #263345; color: white; }
 .layout-actions button[type=submit] { background: #007e6f; }
+
+/* Avoid an extra full-screen compositing layer on memory-constrained phones. */
+.mobile-game-content #crt-overlay { display: none; }

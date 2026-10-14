@@ -149,3 +149,10 @@ The game automatically starts after startup guards are installed for EmulatorJS 
 The first visit still needs to download, decompress, and initialize the arcade WebAssembly core. Safari may require a real touch to enable audio; tapping any existing control resumes suspended audio without changing the game's pause state.
 
 Run startup regression checks with `npm test` (Node.js 18 or later).
+
+
+### Home Screen session recovery
+
+Backgrounding the app saves a checkpoint and pauses the game; foregrounding resumes it without navigation. A lightweight checkpoint is also saved every 15 seconds. If the operating system discards the app process, the next launch restores the latest checkpoint for the same ROM (up to 24 hours old). Reloading also restores this checkpoint; use **Restart** in the native emulator menu to start fresh. Existing manual save states and control layouts are unchanged.
+
+Websites cannot prevent iOS from terminating their processes under memory pressure. Recovery can lose up to 15 seconds of progress if the process is killed without a background event, and requires available site storage. The mobile CRT compositing layer is disabled to reduce graphics overhead.
