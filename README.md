@@ -144,7 +144,7 @@ This project is 100% client-side static web code and can be hosted for free anyw
 
 ## Startup reliability
 
-The game automatically starts after startup guards are installed for EmulatorJS 4.2.3. Failed or stalled cache validation falls back to downloading; interrupted core and ROM downloads retry once. Cache reads have a deadline, while saved games, save states, and control layouts are preserved. Optional font and language downloads do not block startup.
+The game automatically starts after startup guards are installed for EmulatorJS 4.2.3. Failed or stalled cache validation falls back to downloading; interrupted core and ROM downloads retry once. Cache reads have a deadline. The core’s separate save-file IndexedDB read also has a four-second deadline: if it fails or stalls, startup continues with an in-memory save filesystem for that visit. Late database results are ignored and persistence is disabled for that mount to protect older saves from being overwritten. The next visit tries normal persistence again. Local recovery checkpoints and existing saved games, save states, and control layouts are preserved. Optional font and language downloads do not block startup.
 
 The first visit still needs to download, decompress, and initialize the arcade WebAssembly core. Safari may require a real touch to enable audio; tapping any existing control resumes suspended audio without changing the game's pause state.
 
@@ -185,7 +185,7 @@ Physical iPhone/Safari and hotspot compatibility still need device testing. Brow
 
 ### Browser regression
 
-With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm run test:recovery-browser` verifies real save-state restoration byte-for-byte after a mobile page is recreated. `npm test` runs the network-independent startup, recovery and lockstep unit tests.
+With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm run test:storage-browser` simulates a stalled core save database and verifies that gameplay starts and late reads are ignored. `npm run test:recovery-browser` verifies real save-state restoration byte-for-byte after a mobile page is recreated. `npm test` runs the network-independent startup, recovery and lockstep unit tests.
 
 
 QR regressions: `npm run test:qr-browser` exercises camera-denial fallback, real QR decoding through a synthetic video stream, automatic two-scan connection, synchronized gameplay, and camera-track cleanup. Physical camera testing on iPhone/Mac remains necessary. `npm run vendor:qr` refreshes bundled source from the pinned npm packages; retain the accompanying license notices in `js/vendor/`.

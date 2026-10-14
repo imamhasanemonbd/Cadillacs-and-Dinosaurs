@@ -122,3 +122,47 @@ test('frame dispatchers are installed before Emscripten captures callbacks', asy
     env.emulator.Module.dinoPostFrame = () => frames++;
     captured.postMainLoop(); assert.equal(frames, 1);
 });
+
+async function saveStorageSetup(read) {
+    const env = setup(); const calls = [];
+    const backend = {
+        getRemoteSet: read,
+        queuePersist: () => calls.push('persist'),
+        syncfs: (mount, populate, callback) => backend.getRemoteSet(mount, callback)
+    };
+    const module = { FS: { filesystems: { IDBFS: backend } } };
+    env.context.window.EJS_Runtime = () => Promise.resolve(module);
+    env.emulator.initModule = function() { return env.context.window.EJS_Runtime({}); };
+    env.install(); await env.emulator.initModule();
+    return {...env, backend, module, calls};
+}
+test('stalled core save database falls back without importing late data or overwriting old saves', async () => {
+    let late;
+    const env = await saveStorageSetup((mount, callback) => { late = callback; });
+    const mount = {}; let callbacks = 0;
+    env.backend.syncfs(mount, true, error => { assert(error); callbacks++; });
+    env.expire(4000);
+    assert.equal(callbacks, 1);
+    assert.equal(env.module.dinoSaveStorage, 'unavailable');
+    late(null, {entries:{oldSave:'data'}});
+    assert.equal(callbacks, 1);
+    env.backend.queuePersist(mount); assert.deepEqual(env.calls, []);
+    env.backend.syncfs(mount, false, error => assert(error));
+    assert.equal(env.timers.size, 0);
+});
+test('working core save storage imports and persists normally', async () => {
+    const data = {entries:{save:'data'}};
+    const env = await saveStorageSetup((mount, callback) => callback(null, data));
+    const mount = {};
+    env.backend.syncfs(mount, true, (error, result) => { assert.equal(error,null); assert.equal(result,data); });
+    env.backend.queuePersist(mount);
+    assert.deepEqual(env.calls, ['persist']);
+    assert.equal(env.module.dinoSaveStorage, 'available');
+    assert.equal(env.timers.size, 0);
+});
+test('unavailable core save storage does not trap startup on a thrown browser storage error', async () => {
+    const env = await saveStorageSetup(() => { throw new Error('denied'); });
+    env.backend.syncfs({}, true, error => assert.equal(error.message,'denied'));
+    assert.equal(env.module.dinoSaveStorage,'unavailable');
+    assert.equal(env.timers.size,0);
+});

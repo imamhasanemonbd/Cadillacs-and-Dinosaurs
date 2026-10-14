@@ -15,6 +15,7 @@ window.setupSessionRecovery = (emulator, rom) => {
     const record = () => {
         current.sampled = Date.now();
         current.wasmBytes = emulator.Module?.HEAPU8?.byteLength || null;
+        current.saveStorage = emulator.Module?.dinoSaveStorage || 'unknown';
         try { localStorage.setItem(diagnosticKey, JSON.stringify(diagnostics)); } catch (_) {}
     };
     const errorText = error => String(error?.message || error || 'Unknown error').slice(0, 512);
