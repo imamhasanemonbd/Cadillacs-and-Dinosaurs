@@ -1081,7 +1081,7 @@ document.addEventListener('DOMContentLoaded', () => {
         url.searchParams.set('landscape-frame', '1');
         frame.id = 'mobile-game-frame';
         frame.title = 'Cadillacs and Dinosaurs';
-        frame.allow = 'autoplay; fullscreen; gamepad';
+        frame.allow = 'autoplay; fullscreen; gamepad; camera; clipboard-write';
         frame.src = url.href;
         document.getElementById('app-container').replaceWith(frame);
         const fit = () => {

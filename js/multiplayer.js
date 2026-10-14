@@ -46,17 +46,31 @@
         open.id = 'multiplayer-open'; open.type = 'button'; open.textContent = '2P Connect';
         const dialog = document.createElement('dialog'); dialog.id = 'multiplayer-dialog';
         dialog.innerHTML = `<form method="dialog"><header><strong>Two-player Wi-Fi test</strong><button aria-label="Close multiplayer panel">×</button></header></form>
-            <p>Use the same Wi-Fi or hotspot. Both devices need the full game loaded. Exchange codes using Messages or another app; no camera or paid server needed.</p>
+            <p>Use the same Wi-Fi or hotspot. Host shows a QR, guest scans it and shows a reply QR, then host scans the reply. Copy/paste also works without a camera.</p>
             <p class="multiplayer-status" role="status">Ready to pair. Host is Player 1; guest is Player 2.</p>
-            <div class="multiplayer-actions"><button data-mp="create">Create game (host)</button><button data-mp="join">Join with host code</button><button data-mp="finish">Accept reply (host)</button></div>
-            <label>Paste a host code or reply code<textarea id="multiplayer-input" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="DINO1.…"></textarea></label>
-            <label>Your code — send all of it to the other player<textarea id="multiplayer-output" rows="3" readonly spellcheck="false"></textarea></label>
-            <div class="multiplayer-actions"><button data-mp="copy">Copy code</button><button data-mp="resync">Resync (host)</button><button data-mp="leave">Leave / cancel pairing</button></div>
-            <small>1. Host creates and sends a code. 2. Guest pastes it, taps Join, and sends the reply. 3. Host pastes the reply and taps Accept. Close this panel to play. Coin and Start apply to your own player. If a device is backgrounded, both games wait. This two-player test buffers 3 frames (about 50 ms at 60 FPS). Slow connections can pause play. Native settings, cheats and save loads are locked until you Leave.</small>`;
+            <div class="multiplayer-actions"><button data-mp="create">Create game (host)</button><button data-mp="qr-show">Show QR</button><button data-mp="qr-scan">Scan QR</button></div>
+            <section class="pairing-qr-display" hidden aria-label="Your pairing QR"><div class="pairing-qr-image" role="img" aria-label="Pairing QR for the other player to scan"></div><p>Show this QR to the other player. If you are the guest, this is your reply QR for the host.</p></section>
+            <section class="pairing-qr-camera" hidden aria-label="QR camera scanner"><video muted autoplay playsinline></video><button type="button" data-qr="stop">Stop camera</button></section>
+            <details class="pairing-copy"><summary>Copy/paste instead (no camera)</summary>
+                <label>Paste a host code or reply code<textarea id="multiplayer-input" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="DINO1.…"></textarea></label>
+                <div class="multiplayer-actions"><button data-mp="join">Join with host code</button><button data-mp="finish">Accept reply (host)</button></div>
+                <label>Your code — send all of it to the other player<textarea id="multiplayer-output" rows="3" readonly spellcheck="false"></textarea></label>
+                <button data-mp="copy">Copy code</button>
+            </details>
+            <div class="multiplayer-actions"><button data-mp="resync">Resync (host)</button><button data-mp="leave">Leave / cancel pairing</button></div>
+            <small>Scan QR accepts the host offer or reply automatically. Both scans are needed without a pairing service. Camera decoding happens on your device. Close this panel to play. Coin and Start apply to your own player. If a device is backgrounded, both games wait. This two-player test buffers 3 frames (about 50 ms at 60 FPS). Slow connections can pause play. Native settings, cheats and save loads are locked until you Leave.</small>`;
         document.body.append(open, dialog);
         const input = dialog.querySelector('#multiplayer-input'), output = dialog.querySelector('#multiplayer-output');
         const status = dialog.querySelector('[role=status]');
         const say = message => { status.textContent = message; open.title = message; };
+        const qr = window.setupPairingQr(dialog, say, async code => {
+            if (!dialog.open) return;
+            // Validate before touching the current game or connection.
+            decode(code, state.role === 'host' ? 'answer' : 'offer');
+            input.value = code;
+            if (state.role === 'host') await accept();
+            else await join();
+        });
         const send = data => {
             if (state.channel?.readyState !== 'open') return false;
             if (state.channel.bufferedAmount > 512 * 1024) { fail('Connection is too slow. Leave and pair again on the same Wi-Fi.'); return false; }
@@ -172,7 +186,7 @@
             } finally { if (operation === transferOperation) transferring = false; }
         };
         const begin = () => {
-            ready = true; state.active = true;
+            ready = true; state.active = true; qr.clear();
             native.play(true);
             open.textContent = state.role === 'host' ? 'P1 · Connected' : 'P2 · Connected';
             say('Connected directly. Close this panel and use Coin / Start to join the game.');
@@ -279,14 +293,14 @@
             install('host'); state.room = crypto.randomUUID(); resyncs = 0;
             say('Preparing host code…'); const pc = peer(); wire(pc.createDataChannel('dino-inputs', { ordered: true }));
             await pc.setLocalDescription(await pc.createOffer()); await gather(pc);
-            if (closing) return; output.value = code(pc); say('Send your code. Then paste the guest’s reply and tap Accept reply.');
+            if (closing || state.peer !== pc) return; output.value = code(pc); await qr.show(output.value); if (closing || state.peer !== pc) return; say('Show this QR to the guest. Then tap Scan QR to scan their reply.');
         };
         const join = async () => {
             const offer = decode(input.value, 'offer'); install('guest'); state.room = offer.room; resyncs = 0;
             say('Preparing reply…'); const pc = peer(); pc.ondatachannel = event => { if (!state.channel) wire(event.channel); };
             await pc.setRemoteDescription({ type: offer.type, sdp: offer.sdp });
             await pc.setLocalDescription(await pc.createAnswer()); await gather(pc);
-            if (closing) return; output.value = code(pc); say('Send this reply to the host. Keep this page open while they accept it.');
+            if (closing || state.peer !== pc) return; output.value = code(pc); await qr.show(output.value); if (closing || state.peer !== pc) return; say('Show this reply QR to the host so they can scan it. Keep this page open.');
         };
         const accept = async () => {
             if (state.role !== 'host' || !state.peer) throw new Error('Create a host code first.');
@@ -298,7 +312,7 @@
             say('Connecting directly…');
         };
         const leave = () => {
-            operation++; closing = true; gatheringCancel?.();
+            operation++; closing = true; qr.clear(); gatheringCancel?.();
             ready = false; prime = null; state.active = false; clearInterval(heartbeat); clearTimeout(connectionTimer); clearTimeout(snapshotTimer);
             state.channel?.close(); state.peer?.close();
             if (state.busy) {
@@ -317,6 +331,8 @@
         dialog.querySelectorAll('[data-mp]').forEach(button => button.addEventListener('click', async () => {
             const current = operation;
             try {
+                if (button.dataset.mp === 'qr-show') await qr.show(output.value);
+                if (button.dataset.mp === 'qr-scan') await qr.scan();
                 if (button.dataset.mp === 'create') await create();
                 if (button.dataset.mp === 'join') await join();
                 if (button.dataset.mp === 'finish') await accept();

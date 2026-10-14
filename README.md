@@ -148,7 +148,7 @@ The game automatically starts after startup guards are installed for EmulatorJS 
 
 The first visit still needs to download, decompress, and initialize the arcade WebAssembly core. Safari may require a real touch to enable audio; tapping any existing control resumes suspended audio without changing the game's pause state.
 
-Run startup regression checks with `npm test` (Node.js 18 or later).
+Install dependencies with `npm install`, then run regression checks with `npm test` (Node.js 20 or later).
 
 
 ### Home Screen session recovery
@@ -164,12 +164,16 @@ This experimental mode pairs two browsers using copy/paste codes and exchanges i
 
 ### Test with Mac and iPhone
 
-1. Open the updated site on both devices and wait for the game to finish loading. For this first test, use the Mac as host and keep cheats, rewind, fast-forward and slow motion off.
-2. On the Mac, open **2P Connect**, tap **Create game (host)**, then **Copy code**. Send the complete `DINO1.…` code to your iPhone using Messages or your clipboard.
-3. On the iPhone, open **2P Connect**, paste the host code into the input box and tap **Join with host code**. Copy the reply and send it back to the Mac.
-4. On the Mac, paste that reply into the input box and tap **Accept reply (host)**. Codes expire after ten minutes; a new host code needs its own matching reply.
-5. Wait for Connected, then close both panels with **×**. The Mac controls Player 1 and the iPhone controls Player 2. Use **Coin**, then **Start**, on each device. Each device's existing joystick, buttons, keyboard and gamepad feed its own player.
-6. The top button shows network round-trip time (RTT), not total button-to-screen latency. Open it for **Resync (host)** or **Leave / cancel pairing**. Leaving restores solo controls without reloading the page.
+1. Open the updated site on both devices, join the same Wi-Fi, and wait for the game to load. Use the Mac as host for the first test. Keep cheats, rewind, fast-forward and slow motion off.
+2. On the Mac, open **2P Connect → Create game (host)**. A QR appears automatically. You can redisplay it with **Show QR**.
+3. On the iPhone, open **2P Connect → Scan QR**, allow camera access, and point the camera at the Mac’s QR. The guest joins automatically and displays a reply QR.
+4. On the Mac, tap **Scan QR** and scan that reply from the iPhone. Pairing completes automatically; there is no need to press Join or Accept when scanning.
+5. If the Mac has no camera, expand **Copy/paste instead (no camera)** on the iPhone, copy its reply, and send it to the Mac. Expand the same section on the Mac, paste the reply, and tap **Accept reply (host)**. You can also use copy/paste for the entire exchange.
+6. When connected, close both panels with **×**. Mac controls Player 1; iPhone controls Player 2. Use **Coin → Start** on each device.
+
+Both scans are necessary for serverless pairing. Codes expire after ten minutes and replies must match their host offer. QR codes are generated and decoded locally; camera images are not uploaded. The camera stops after detection, on Stop camera, when closing or leaving the popup, and when the app is backgrounded. Scanning needs HTTPS (GitHub Pages provides it) or localhost and camera permission. QR libraries are bundled in the repository and loaded only when needed. Compression makes the QR less dense on supported browsers; plain-code QR remains a fallback.
+
+The top button shows network round-trip time (RTT), not total button-to-screen latency. Open it for **Resync (host)** or **Leave / cancel pairing**. Leaving restores solo controls without reloading the page.
 
 The host's current state is transferred to the guest. This is buffered frame lockstep, **not rollback netplay**: it adds three frames (about 50 ms at 60 FPS), and both devices wait when an input is missing. Backgrounding either device pauses shared progression. A disconnected session stays paused until you leave and pair again. There is no automatic page reload or multiplayer reconnect across an iOS process termination.
 
@@ -180,3 +184,6 @@ Physical iPhone/Safari and hotspot compatibility still need device testing. Brow
 ### Browser regression
 
 With Node.js 20 or later, after `npm install`, run `npx playwright install chromium`, start the site with `npm run serve:py`, then run `npm run test:browser`. The test downloads the pinned emulator assets and uses the actual game. Optional environment variables: `DINO_TEST_URL` for another local URL and `DINO_CHROME_PATH` for an installed Chrome executable. `npm test` runs the network-independent startup, recovery and lockstep unit tests.
+
+
+QR regressions: `npm run test:qr-browser` exercises camera-denial fallback, real QR decoding through a synthetic video stream, automatic two-scan connection, synchronized gameplay, and camera-track cleanup. Physical camera testing on iPhone/Mac remains necessary. `npm run vendor:qr` refreshes bundled source from the pinned npm packages; retain the accompanying license notices in `js/vendor/`.

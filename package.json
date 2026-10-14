@@ -8,7 +8,9 @@
     "dev": "npx serve -l 3000 .",
     "serve:py": "python3 -m http.server 3000",
     "test": "node --test tests/*.test.cjs",
-    "test:browser": "node tests/multiplayer.browser.cjs"
+    "test:browser": "node tests/multiplayer.browser.cjs",
+    "vendor:qr": "node scripts/vendor-qr.cjs",
+    "test:qr-browser": "node tests/pairing-qr.browser.cjs"
   },
   "keywords": [
     "cadillacs-and-dinosaurs",
@@ -24,6 +26,8 @@
   "author": "Imam Hasan",
   "license": "MIT",
   "devDependencies": {
-    "playwright": "1.64.0"
+    "jsqr": "1.4.0",
+    "playwright": "1.64.0",
+    "qrcode-generator": "1.4.4"
   }
 }
