@@ -3,7 +3,7 @@
     const BUILD = '4.2.3:08f524a10263a86a61de60cb9a143ffec508bb2f9d770c9cea9029fc716c273f';
     const hash = bytes => {
         let result = 2166136261;
-        for (const byte of bytes) result = Math.imul(result ^ byte, 16777619);
+        for (let index = 0; index < bytes.length; index++) result = Math.imul(result ^ bytes[index], 16777619);
         return (result >>> 0).toString(16);
     };
     const encode = record => 'DINO1.' + btoa(JSON.stringify(record));
@@ -30,7 +30,16 @@
         // The full state includes device-timed audio mixer history, which differs
         // without gameplay drift. This checks the first 256 KiB (frame metadata,
         // video RAM and main RAM prefix), not proof of full-core determinism.
-        const fingerprint = () => hash(gm.getState().subarray(0, 0x40000));
+        const fingerprint = () => {
+            // Hash the core's reusable state buffer directly. getState() copies
+            // the entire 275 KiB state into a new JS ArrayBuffer on every check.
+            const [sizeText, pointerText, valid] = gm.functions.saveStateInfo().split('|');
+            const size = Number(sizeText), pointer = Number(pointerText), heap = gm.Module.HEAPU8;
+            if (valid !== '1' || size !== 275792 || !Number.isSafeInteger(pointer) || pointer < 0 || pointer + size > heap.length) {
+                throw new Error('The core could not provide a valid synchronization state.');
+            }
+            return hash(heap.subarray(pointer, pointer + 0x40000));
+        };
         const settingsSignature = () => {
             const values = { ...emulator.defaultCoreOpts?.settings };
             for (const [key, value] of Object.entries(emulator.settings || {})) if (/^(fbneo|fba)[-_]/.test(key)) values[key] = value;
@@ -40,7 +49,7 @@
         let closing = false, ready = false, remotePaused = false, pendingState = null, engaged = false;
         let chunks = [], received = 0, priorPre, priorPost, didRun = false, prime = null;
         let heartbeat, connectionTimer, snapshotTimer, disconnectTimer, gatheringCancel, operation = 0;
-        let transportInterrupted = false;
+        let transportInterrupted = false, lastIncoming = 0, waitingForPeer = false;
         let hashes = new Map(), remoteHashes = new Map(), resyncs = 0;
         const guarded = [];
         const open = document.createElement('button');
@@ -63,7 +72,8 @@
         document.body.append(open, dialog);
         const input = dialog.querySelector('#multiplayer-input'), output = dialog.querySelector('#multiplayer-output');
         const status = dialog.querySelector('[role=status]');
-        const say = message => { status.textContent = message; open.title = message; };
+        const reportSession = () => window.dispatchEvent(new Event('dino-multiplayer-status'));
+        const say = message => { status.textContent = message; open.title = message; reportSession(); };
         const qr = window.setupPairingQr(dialog, say, async code => {
             if (!dialog.open) return;
             // Validate before touching the current game or connection.
@@ -89,6 +99,7 @@
             clearTimeout(disconnectTimer); transportInterrupted = false;
             ready = false; state.active = false;
             say(message); open.textContent = '2P · Paused';
+            if (!dialog.open) dialog.showModal();
         };
         const guard = (object, name) => {
             if (typeof object[name] !== 'function') return;
@@ -128,9 +139,14 @@
                 if (!didRun) return;
                 priorPost?.(); state.loop.after();
                 if (state.loop.frame % 120 === 0) {
-                    const frame = state.loop.frame, digest = fingerprint();
-                    hashes.set(frame, digest); send({ t: 'hash', epoch: state.epoch, frame, digest });
-                    compare(frame);
+                    const frame = state.loop.frame;
+                    try {
+                        const digest = fingerprint();
+                        hashes.set(frame, digest); send({ t: 'hash', epoch: state.epoch, frame, digest });
+                        compare(frame);
+                    } catch (_) {
+                        send({ t: 'stop' }); fail('Synchronization state could not be read. Game paused safely; leave and pair again.');
+                    }
                     for (const key of hashes.keys()) if (key < frame - 600) { hashes.delete(key); remoteHashes.delete(key); }
                 }
             };
@@ -149,11 +165,18 @@
         };
         const resetLoop = () => {
             hashes = new Map(); remoteHashes = new Map(); state.lastVerifiedFrame = 0;
+            const applied = [-1, -1];
             state.loop = new window.DinoLockstep(
                 (frame, mask) => send({ t: 'input', epoch: state.epoch, frame, mask }),
                 (local, remote) => {
                     const masks = state.role === 'host' ? [local, remote] : [remote, local];
-                    for (let player = 0; player < 2; player++) for (let index = 0; index <= 8; index++) gm.functions.simulateInput(player, index, (masks[player] >> index) & 1);
+                    for (let player = 0; player < 2; player++) {
+                        const changed = applied[player] ^ masks[player];
+                        for (let index = 0; index <= 8; index++) {
+                            if (changed & (1 << index)) gm.functions.simulateInput(player, index, (masks[player] >> index) & 1);
+                        }
+                        applied[player] = masks[player];
+                    }
                 });
         };
         const compare = frame => {
@@ -269,14 +292,37 @@
         const wire = channel => {
             state.channel = channel; channel.binaryType = 'arraybuffer';
             let messages = Promise.resolve(), opened = false;
-            channel.onmessage = event => { messages = messages.then(() => { if (state.channel === channel) return receive(event); }); };
+            channel.onmessage = event => {
+                if (state.channel !== channel) return;
+                lastIncoming = Date.now();
+                if (waitingForPeer) {
+                    waitingForPeer = false;
+                    if (state.active) say('Other device is responding again. Continuing the same game.');
+                }
+                messages = messages.then(() => { if (state.channel === channel) return receive(event); });
+            };
             const connected = () => {
                 if (opened || closing || state.channel !== channel) return;
                 opened = true;
                 engage();
                 say('Direct connection established. Synchronizing the host’s game…');
                 send({ t: 'hello', build: BUILD, settings: settingsSignature() });
-                heartbeat = setInterval(() => send({ t: 'ping', at: performance.now(), hidden: document.hidden }), 2000);
+                lastIncoming = Date.now(); let beats = 0;
+                heartbeat = setInterval(() => {
+                    if (state.channel !== channel || closing) return;
+                    if (state.active && !document.hidden && !remotePaused) {
+                        const silence = Date.now() - lastIncoming;
+                        if (silence > 20000) {
+                            fail('The other device stopped responding or restarted. Game paused; leave and pair again.');
+                        } else if (silence > 6000 && !waitingForPeer) {
+                            waitingForPeer = true;
+                            open.textContent = '2P · Waiting';
+                            say('Waiting for the other device. It may have disconnected or restarted.');
+                        }
+                    }
+                    send({ t: 'ping', at: performance.now(), hidden: document.hidden });
+                    if (++beats % 5 === 0) reportSession();
+                }, 2000);
             };
             channel.onopen = connected;
             if (channel.readyState === 'open') connected();
@@ -360,7 +406,7 @@
             }
             engaged = false; state.syncing = false; state.busy = false; state.role = null;
             state.peer = null; state.channel = null; state.loop = null; pendingState = null; chunks = [];
-            remotePaused = false; transportInterrupted = false; transferring = false;
+            remotePaused = false; transportInterrupted = false; waitingForPeer = false; lastIncoming = 0; transferring = false;
             document.documentElement.classList.remove('multiplayer-active'); output.value = ''; input.value = '';
             document.getElementById('btn-start-p1').setAttribute('aria-label', 'Start player one');
             document.getElementById('btn-start-p1').title = '1P Start (1 / Enter)';

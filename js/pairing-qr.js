@@ -81,7 +81,7 @@
             if (frame !== null) cancelAnimationFrame(frame);
             frame = null;
             stream?.getTracks().forEach(track => track.stop()); stream = null;
-            video.pause(); video.srcObject = null; camera.hidden = true;
+            video.pause(); video.srcObject = null; video.load(); camera.hidden = true;
             canvas.width = canvas.height = 0;
         };
         const show = async code => {

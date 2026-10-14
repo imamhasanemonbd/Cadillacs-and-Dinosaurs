@@ -33,6 +33,22 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  for(const f of games)await f.waitForFunction(()=>window.dinoMultiplayer.active,{},{timeout:30000});console.log('ACTIVE');
  for(const f of games)await f.locator('[aria-label="Close multiplayer panel"]').click();
  await pages[0].waitForTimeout(3000);console.log('STATE',await Promise.all(games.map(f=>f.evaluate(()=>({frame:window.dinoMultiplayer.loop?.frame,epoch:window.dinoMultiplayer.epoch,size:[window.EJS_emulator.canvas.width,window.EJS_emulator.canvas.height],verified:window.dinoMultiplayer.lastVerifiedFrame,active:window.dinoMultiplayer.active,paused:window.EJS_emulator.paused,status:document.querySelector('.multiplayer-status').textContent})))));
+ // Checksums must match the old copied prefix without allocating state copies.
+ assert.equal(await host.evaluate(()=>{
+   const gm=EJS_emulator.gameManager, original=gm.getState;
+   const bytes=original.call(gm).subarray(0,0x40000);let hash=2166136261;
+   for(const byte of bytes)hash=Math.imul(hash^byte,16777619);
+   let copies=0;gm.getState=(...args)=>{copies++;return original.apply(gm,args);};
+   try {return window.dinoMultiplayer.hash()===(hash>>>0).toString(16) && copies===0;}
+   finally {gm.getState=original;}
+ }),true);
+ const idleInputs=await host.evaluate(()=>{
+   const original=EJS_emulator.gameManager.functions.simulateInput;window.testNativeInputs=0;
+   EJS_emulator.gameManager.functions.simulateInput=(...args)=>{window.testNativeInputs++;return original(...args);};
+   return window.testNativeInputs;
+ });
+ await pages[0].waitForTimeout(1000);
+ assert(await host.evaluate(()=>window.testNativeInputs)<36,'idle play must not repeatedly resend every native input');
  await host.locator('#btn-insert-coin').click();await host.locator('#btn-start-p1').click();await guest.locator('#btn-insert-coin').click();await guest.locator('#btn-start-p1').click();
  await guest.evaluate(()=>window.EJS_emulator.gameManager.simulateInput(0,7,1));await pages[0].waitForTimeout(600);await guest.evaluate(()=>window.EJS_emulator.gameManager.simulateInput(0,7,0));
  await pages[0].waitForTimeout(4000);console.log('AFTER INPUT',await Promise.all(games.map(f=>f.evaluate(()=>({frame:window.dinoMultiplayer.loop?.frame,epoch:window.dinoMultiplayer.epoch,size:[window.EJS_emulator.canvas.width,window.EJS_emulator.canvas.height],verified:window.dinoMultiplayer.lastVerifiedFrame,active:window.dinoMultiplayer.active,status:document.querySelector('.multiplayer-status').textContent})))));
@@ -61,6 +77,30 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  const epoch=await host.evaluate(()=>window.dinoMultiplayer.epoch);await host.evaluate(()=>window.dinoMultiplayer.resync());
  for(const f of games)await f.waitForFunction(e=>window.dinoMultiplayer.active&&window.dinoMultiplayer.epoch>e,epoch,{timeout:10000});
  await pages[0].waitForTimeout(500);assert.equal(await guest.evaluate(()=>document.getElementById('btn-start-p1').getAttribute('aria-label')),'Start player two');
+ // Ignore all incoming packets while the transport still appears connected.
+ await host.evaluate(()=>{
+   window.testIncomingHandler=window.dinoMultiplayer.channel.onmessage;
+   window.dinoMultiplayer.channel.onmessage=()=>{};
+   window.testRealNow=Date.now;Date.now=()=>window.testRealNow()+25000;
+ });
+ await host.waitForFunction(()=>!window.dinoMultiplayer.active && document.querySelector('#multiplayer-dialog').open,{},{timeout:5000});
+ assert.match(await host.locator('.multiplayer-status').textContent(),/stopped responding or restarted/);
+ await host.evaluate(()=>{Date.now=window.testRealNow;window.dinoMultiplayer.channel.onmessage=window.testIncomingHandler;});
+ // An explicit host resync can reuse a live connection after a timeout.
+ await host.evaluate(()=>window.dinoMultiplayer.resync());
+ for(const f of games)await f.waitForFunction(()=>window.dinoMultiplayer.active,{},{timeout:10000});
+ await host.locator('[aria-label="Close multiplayer panel"]').click();
+ // A failed state read must not escape and abort the emulator's frame callback.
+ await host.evaluate(()=>{
+   window.testSaveStateInfo=EJS_emulator.gameManager.functions.saveStateInfo;
+   EJS_emulator.gameManager.functions.saveStateInfo=()=> 'invalid';
+ });
+ await host.waitForFunction(()=>!window.dinoMultiplayer.active && document.querySelector('#multiplayer-dialog').open,{},{timeout:5000});
+ assert.match(await host.locator('.multiplayer-status').textContent(),/Synchronization state could not be read/);
+ await host.evaluate(()=>{EJS_emulator.gameManager.functions.saveStateInfo=window.testSaveStateInfo;});
+ await host.evaluate(()=>window.dinoMultiplayer.resync());
+ for(const f of games)await f.waitForFunction(()=>window.dinoMultiplayer.active,{},{timeout:10000});
+ await host.locator('[aria-label="Close multiplayer panel"]').click();
  // Expiry is terminal; a late connected event must not claim play resumed.
  await host.evaluate(()=>{
    const pc=window.dinoMultiplayer.peer, schedule=window.setTimeout;
@@ -74,6 +114,6 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  await guest.evaluate(()=>window.dinoMultiplayer.channel.close());await host.waitForFunction(()=>!window.dinoMultiplayer.active,{},{timeout:5000});
  for(const f of games)await f.evaluate(()=>window.dinoMultiplayer.leave());
  for(const f of games){assert.equal(await f.evaluate(()=>window.dinoMultiplayer.busy),false);assert.equal(await f.evaluate(()=>window.EJS_emulator.elements.menu.inert),false);assert.equal(await f.evaluate(()=>window.EJS_emulator.paused),false);}
- console.log('PASS: actual host/guest pairing, matching frames and RAM checks, remote movement/Coin/Start, transient disconnect recovery with matching RAM, stale channel isolation, background pause/resume, resync, bounded disconnect expiry, Leave restores solo.');
+ console.log('PASS: actual host/guest pairing, matching frames and RAM checks, remote movement/Coin/Start, transient disconnect recovery with matching RAM, stale channel isolation, background pause/resume, resync, bounded disconnect expiry, silent-peer reporting, copy-free hashes and reduced native input calls, Leave restores solo.');
   assert.deepEqual(errors,[]);await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

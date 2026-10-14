@@ -15,10 +15,14 @@ window.setupSessionRecovery = (emulator, rom) => {
         current.wasmBytes = emulator.Module?.HEAPU8?.byteLength || null;
         current.saveStorage = emulator.Module?.dinoSaveStorage || 'unknown';
         current.startup = window.dinoStartupStatus ? {...window.dinoStartupStatus} : null;
+        const multiplayer = window.dinoMultiplayer;
+        current.multiplayer = multiplayer ? {active:multiplayer.active, role:multiplayer.role, frame:multiplayer.loop?.frame || 0,
+            epoch:multiplayer.epoch, verified:multiplayer.lastVerifiedFrame || 0, bufferedBytes:multiplayer.channel?.bufferedAmount || 0} : null;
         try { localStorage.setItem(diagnosticKey, JSON.stringify(diagnostics)); } catch (_) {}
     };
     const errorText = error => String(error?.message || error || 'Unknown error').slice(0, 512);
     window.addEventListener('dino-startup-status', record);
+    window.addEventListener('dino-multiplayer-status', record);
     window.addEventListener('error', event => { current.error = errorText(event.error || event.message); record(); });
     window.addEventListener('unhandledrejection', event => { current.error = errorText(event.reason); record(); });
     record();

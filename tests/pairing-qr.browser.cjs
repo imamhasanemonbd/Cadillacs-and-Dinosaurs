@@ -66,7 +66,12 @@ const assert = require('node:assert/strict');
         await host.evaluate(() => clearInterval(window.testCameraTimer));
         for (const game of games) await game.locator('[aria-label="Close multiplayer panel"]').click();
         for (const game of games) await game.waitForFunction(() => window.dinoMultiplayer.lastVerifiedFrame >= 120, {}, { timeout: 10000 });
-        for (const game of games) await game.evaluate(() => window.dinoMultiplayer.leave());
+        for (const game of games) {
+            await game.evaluate(() => window.dinoMultiplayer.leave());
+            if (await game.evaluate(() => document.querySelector('#multiplayer-dialog').open)) {
+                await game.locator('[aria-label="Close multiplayer panel"]').click();
+            }
+        }
         // Mobile portrait camera frames stay in a landscape viewport, including
         // orientation changes while scanning. Desktop retains its original sizing.
         await guest.locator('#multiplayer-open').click();
