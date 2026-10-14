@@ -58,6 +58,7 @@ class DinoArcadeApp {
         }
 
         window.setupGameFullscreen?.();
+        window.setupControlLayout?.();
         this.startGame();
     }
 
@@ -504,7 +505,7 @@ class DinoArcadeApp {
         // Use EmulatorJS native controls with only a joystick and X / Y buttons.
         window.EJS_VirtualGamepadSettings = [
             {
-                type: 'zone', location: 'left', left: '50%', top: '50%',
+                type: 'zone', id: 'layout_joystick', location: 'left', left: '50%', top: '50%',
                 joystickInput: false, inputValues: [4, 5, 6, 7], color: 'blue'
             },
             {
@@ -526,6 +527,7 @@ class DinoArcadeApp {
         window.EJS_onGameStart = () => {
             console.log('[DINO] Game loop started at 60 FPS');
             this.dismissStartOverlay();
+            requestAnimationFrame(() => window.refreshControlLayout?.());
         };
 
         window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');

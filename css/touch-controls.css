@@ -358,3 +358,63 @@
 #game-system-controls button:active {
     background: #334155;
 }
+
+/* Layout editor overlays capture input while the existing controls stay visible. */
+#control-layout-open {
+    position: fixed;
+    top: calc(104px + env(safe-area-inset-top, 0px));
+    right: max(8px, env(safe-area-inset-right));
+    z-index: 10002;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ffffff55;
+    border-radius: 50%;
+    background: #000b;
+    color: white;
+    font: 24px sans-serif;
+    touch-action: manipulation;
+}
+#control-layout-editor {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    color: white;
+    font: 14px sans-serif;
+}
+#control-layout-editor[hidden], #control-layout-open[hidden] { display: none; }
+.layout-drag-layer { position: absolute; inset: 0; background: #0005; touch-action: none; }
+.layout-control-box {
+    position: absolute;
+    border: 2px dashed #fff;
+    border-radius: 10px;
+    background: #17243855;
+    color: white;
+    padding: 0;
+    font: bold 12px sans-serif;
+    touch-action: none;
+    cursor: move;
+}
+.layout-control-box.selected { border-color: #00f5d4; background: #006c6255; }
+.layout-panel {
+    position: absolute;
+    left: 50%;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    width: min(420px, calc(100% - 16px));
+    padding: 10px 12px;
+    border: 1px solid #ffffff55;
+    border-radius: 12px;
+    background: #101827f5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+.layout-panel label { display: flex; align-items: center; gap: 6px; }
+.layout-panel select { max-width: 120px; min-height: 36px; color: white; background: #263345; border: 0; border-radius: 6px; }
+.layout-panel input[type=range] { width: 110px; accent-color: #00f5d4; }
+.layout-panel output { width: 38px; font-variant-numeric: tabular-nums; }
+.layout-instruction { flex: 1 1 100%; font-size: 12px; color: #cbd5e1; }
+.layout-actions { display: flex; gap: 8px; width: 100%; justify-content: flex-end; }
+.layout-actions button { min-height: 36px; padding: 0 14px; border: 1px solid #ffffff44; border-radius: 6px; background: #263345; color: white; }
+.layout-actions button[type=submit] { background: #007e6f; }
