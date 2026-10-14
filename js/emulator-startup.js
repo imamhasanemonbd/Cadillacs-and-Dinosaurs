@@ -30,22 +30,36 @@
         const spinner = document.createElement('span'); spinner.className = 'dino-startup-spinner'; spinner.setAttribute('aria-hidden', 'true');
         const label = document.createElement('strong'), detail = document.createElement('span');
         panel.append(spinner, label, detail); parent.appendChild(panel);
-        let timer, began = 0, finished = false, lastText = '';
+        let timer, began = 0, finished = false, lastText = '', firstFrame = null, waitingForFrames = false;
+        const status = window.dinoStartupStatus = { phase: 'loading', frame: null, graphicsLost: false };
         const tick = () => {
             const seconds = Math.floor((Date.now() - began) / 1000);
+            if (waitingForFrames && seconds >= 15) {
+                detail.textContent = `${seconds}s · Game files loaded, but the engine is not advancing frames. This is not a download delay.`;
+                return;
+            }
             detail.textContent = seconds < 15 ? `${seconds}s · Please wait` : `${seconds}s · This step is taking longer than usual. If it stays here, check your connection.`;
         };
         const show = text => {
             if (finished) return;
             if (label.textContent !== text) { began = Date.now(); label.textContent = text; }
+            status.phase = text;
             panel.hidden = false; parent.classList.add('dino-starting'); tick();
             if (emulator.textElem) observer.observe(emulator.textElem, {childList:true, characterData:true, subtree:true});
             if (!timer) timer = setInterval(tick, 1000);
         };
         const finish = () => {
-            if (finished || !emulator.started) return;
+            if (finished || !emulator.started || status.graphicsLost) return;
+            if (!waitingForFrames) { waitingForFrames = true; show('Waiting for game frames…'); }
+            const frame = emulator.gameManager?.getFrameNum?.();
+            status.frame = Number.isFinite(frame) ? frame : null;
+            if (!Number.isFinite(frame)) return;
+            if (firstFrame === null) firstFrame = frame;
+            if (frame < firstFrame + 2) return;
+            status.phase = 'running';
             finished = true; clearInterval(timer); observer?.disconnect();
             parent.classList.remove('dino-starting'); panel.remove();
+            window.dispatchEvent(new Event('dino-startup-status'));
         };
         const observer = new MutationObserver(() => {
             const text = emulator.textElem?.textContent?.trim();
@@ -66,6 +80,32 @@
                 requestAnimationFrame(() => setTimeout(() => original.apply(this, args), 0));
             };
         }
+        emulator.canvas?.addEventListener('webglcontextlost', () => {
+            status.graphicsLost = true; status.phase = 'graphics-context-lost';
+            // Keep a visible explanation even if the loading panel was removed.
+            finished = false; waitingForFrames = false;
+            if (!panel.isConnected) parent.appendChild(panel);
+            show('The graphics renderer was interrupted.');
+            status.phase = 'graphics-context-lost';
+            panel.classList.add('is-error'); clearInterval(timer); timer = null;
+            detail.textContent = 'The browser lost the game graphics. No automatic reload will occur.';
+            window.dispatchEvent(new Event('dino-startup-status'));
+        });
+        emulator.canvas?.addEventListener('webglcontextrestored', () => {
+            status.graphicsLost = false; firstFrame = null; panel.classList.remove('is-error');
+            show('Graphics restored. Waiting for game frames…');
+        });
+        emulator.on?.('start', () => {
+            waitingForFrames = true;
+            const frame = emulator.gameManager?.getFrameNum?.();
+            firstFrame = Number.isFinite(frame) ? frame : null;
+            status.frame = firstFrame;
+            show('Waiting for game frames…');
+            // resumeMainLoop alone doesn't clear RetroArch's separate pause flag.
+            if (!document.hidden && !emulator.paused && !window.dinoMultiplayer?.busy) {
+                emulator.gameManager?.toggleMainLoop?.(1);
+            }
+        });
         emulator.dinoStartupProgress = { show, finish };
     };
 
@@ -164,6 +204,7 @@
         const contexts = new Set();
         const audio = module?.AL?.currentCtx;
         if (audio?.ctx) contexts.add(audio.ctx);
+        if (audio?.audioCtx) contexts.add(audio.audioCtx);
         audio?.sources?.forEach(source => { if (source?.gain?.context) contexts.add(source.gain.context); });
         if (module?.SDL?.audioContext) contexts.add(module.SDL.audioContext);
         for (const context of contexts) {

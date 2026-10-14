@@ -14,9 +14,11 @@ window.setupSessionRecovery = (emulator, rom) => {
         current.sampled = Date.now();
         current.wasmBytes = emulator.Module?.HEAPU8?.byteLength || null;
         current.saveStorage = emulator.Module?.dinoSaveStorage || 'unknown';
+        current.startup = window.dinoStartupStatus ? {...window.dinoStartupStatus} : null;
         try { localStorage.setItem(diagnosticKey, JSON.stringify(diagnostics)); } catch (_) {}
     };
     const errorText = error => String(error?.message || error || 'Unknown error').slice(0, 512);
+    window.addEventListener('dino-startup-status', record);
     window.addEventListener('error', event => { current.error = errorText(event.error || event.message); record(); });
     window.addEventListener('unhandledrejection', event => { current.error = errorText(event.reason); record(); });
     record();

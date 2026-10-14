@@ -135,3 +135,10 @@ test('startup uses empty memory save RAM without opening the old save database',
     assert.equal(module.dinoSaveStorage,'memory-only');
     assert.equal(env.timers.size,0);
 });
+
+test('touch resumes the pinned core audioCtx even before audio sources exist', () => {
+    const env = setup(); let resumed = 0;
+    env.context.window.EJS_emulator = {Module:{AL:{currentCtx:{audioCtx:{state:'suspended',resume:()=>{resumed++;return Promise.resolve();}},sources:[]}}}};
+    env.listeners.pointerdown();
+    assert.equal(resumed,1);
+});
