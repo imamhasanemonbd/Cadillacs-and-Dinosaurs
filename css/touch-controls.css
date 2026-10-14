@@ -442,3 +442,28 @@
 .pairing-qr-camera video { display: block; width: min(440px, 100%); max-height: 260px; margin: 0 auto 8px; object-fit: contain; background: #000; border-radius: 8px; }
 .pairing-copy { margin: 14px 0; }
 .pairing-copy summary { cursor: pointer; min-height: 40px; padding-top: 8px; }
+
+/* Camera orientation is independent of the rotated mobile game iframe. */
+.mobile-game-content .pairing-camera-viewport {
+    position: relative;
+    width: min(440px, 100%);
+    aspect-ratio: 16 / 9;
+    max-height: min(240px, 55dvh);
+    margin: 0 auto 8px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #000;
+}
+.mobile-game-content .pairing-camera-viewport video {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 100%; height: 100%; max-height: none;
+    margin: 0;
+    object-fit: contain;
+    transform: translate(-50%, -50%);
+}
+.mobile-game-content .pairing-camera-viewport.portrait-camera video {
+    width: var(--preview-height);
+    height: var(--preview-width);
+    transform: translate(-50%, -50%) rotate(-90deg);
+}

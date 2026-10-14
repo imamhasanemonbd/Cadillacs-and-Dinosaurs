@@ -50,7 +50,7 @@
             <p class="multiplayer-status" role="status">Ready to pair. Host is Player 1; guest is Player 2.</p>
             <div class="multiplayer-actions"><button data-mp="create">Create game (host)</button><button data-mp="qr-show">Show QR</button><button data-mp="qr-scan">Scan QR</button></div>
             <section class="pairing-qr-display" hidden aria-label="Your pairing QR"><div class="pairing-qr-image" role="img" aria-label="Pairing QR for the other player to scan"></div><p>Show this QR to the other player. If you are the guest, this is your reply QR for the host.</p></section>
-            <section class="pairing-qr-camera" hidden aria-label="QR camera scanner"><video muted autoplay playsinline></video><button type="button" data-qr="stop">Stop camera</button></section>
+            <section class="pairing-qr-camera" hidden aria-label="QR camera scanner"><div class="pairing-camera-viewport"><video muted autoplay playsinline webkit-playsinline disablepictureinpicture></video></div><button type="button" data-qr="stop">Stop camera</button></section>
             <details class="pairing-copy"><summary>Copy/paste instead (no camera)</summary>
                 <label>Paste a host code or reply code<textarea id="multiplayer-input" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="DINO1.…"></textarea></label>
                 <div class="multiplayer-actions"><button data-mp="join">Join with host code</button><button data-mp="finish">Accept reply (host)</button></div>

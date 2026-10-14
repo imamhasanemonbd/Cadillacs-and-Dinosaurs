@@ -46,6 +46,19 @@
         const image = box.querySelector('.pairing-qr-image');
         const camera = dialog.querySelector('.pairing-qr-camera');
         const video = camera.querySelector('video');
+        const preview = camera.querySelector('.pairing-camera-viewport');
+        const mobile = document.documentElement.classList.contains('mobile-game-content');
+        // Safari may deliver portrait camera frames even inside our landscape
+        // iframe. Normalize only the mobile preview; decode the original pixels.
+        const fitPreview = () => {
+            if (!mobile || !preview) return;
+            preview.style.setProperty('--preview-width', `${preview.clientWidth}px`);
+            preview.style.setProperty('--preview-height', `${preview.clientHeight}px`);
+            preview.classList.toggle('portrait-camera', video.videoHeight > video.videoWidth);
+        };
+        video.addEventListener('loadedmetadata', fitPreview);
+        video.addEventListener('resize', fitPreview);
+        if (mobile && preview && window.ResizeObserver) new ResizeObserver(fitPreview).observe(preview);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d', { willReadFrequently: true });
         let stream = null, frame = null, generation = 0, renderGeneration = 0;
@@ -75,11 +88,12 @@
             box.hidden = true;
             const current = generation;
             if (!navigator.mediaDevices?.getUserMedia) throw new Error('No camera access in this browser. Use copy/paste instead.');
+            if (document.activeElement?.matches('textarea, input')) document.activeElement.blur();
             say('Allow camera access, then point it at the other player’s QR.');
             await load();
             if (current !== generation || !dialog.open) return;
             let media;
-            try { media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); }
+            try { media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, ...(mobile ? { aspectRatio: { ideal: 16 / 9 } } : {}) }, audio: false }); }
             catch (error) {
                 if (current !== generation) return;
                 if (error.name === 'NotAllowedError' || error.name === 'SecurityError') throw new Error('Camera permission was denied. Allow it in browser settings, or use copy/paste.');
@@ -89,6 +103,7 @@
             stream = media; video.srcObject = media; camera.hidden = false;
             try { await video.play(); } catch (_) { if (current !== generation) return; stop(); throw new Error('Camera preview could not start. Try scanning again or use copy/paste.'); }
             if (current !== generation) return;
+            fitPreview();
             camera.scrollIntoView({ block: 'nearest' });
             say('Scanning locally. Hold the entire QR inside the camera view.');
             let lastScan = 0;
