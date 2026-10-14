@@ -1096,6 +1096,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 top: `${viewport?.offsetTop || 0}px`,
                 transform: rotated ? 'rotate(90deg)' : 'none'
             });
+            frame.dataset.gameRotation = rotated ? '90' : '0';
+            // Keep camera pixels aligned with the physical screen, not this frame.
+            frame.contentWindow?.dispatchEvent(new Event('dino-frame-rotation'));
         };
         fit();
         window.addEventListener('resize', fit);

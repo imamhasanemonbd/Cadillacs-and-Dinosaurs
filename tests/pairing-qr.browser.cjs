@@ -60,20 +60,30 @@ const assert = require('node:assert/strict');
         await cameraFromQr(guest, '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><rect width="640" height="640" fill="white"/></svg>', 360, 640);
         await guest.locator('[data-mp=qr-scan]').click();
         await guest.waitForFunction(() => document.querySelector('.portrait-camera') && document.querySelector('video').videoHeight > document.querySelector('video').videoWidth);
+        const cameraUpright = () => {
+            const outer = Number(window.frameElement?.dataset.gameRotation) || 0;
+            const matrix = new DOMMatrix(getComputedStyle(document.querySelector('video')).transform);
+            const camera = Math.round(Math.atan2(matrix.b, matrix.a) * 180 / Math.PI);
+            return outer + camera === 0;
+        };
         const landscapePreview = () => {
             const box = document.querySelector('.pairing-camera-viewport');
             return innerWidth > innerHeight && box.clientWidth > box.clientHeight && getComputedStyle(document.querySelector('video')).transform !== 'none';
         };
         assert.equal(await host.evaluate(() => getComputedStyle(document.querySelector('.pairing-camera-viewport video')).transform), 'none');
         assert.equal(await guest.evaluate(landscapePreview), true);
+        assert.equal(await guest.evaluate(cameraUpright), true);
         await pages[1].setViewportSize({width: 844, height: 390});
         await guest.waitForFunction(() => innerWidth === 844);
         assert.equal(await guest.evaluate(landscapePreview), true);
+        assert.equal(await guest.evaluate(cameraUpright), true);
         await guest.evaluate(() => { window.testCameraCanvas.width = 640; window.testCameraCanvas.height = 360; });
         await guest.waitForFunction(() => document.querySelector('video').videoWidth > document.querySelector('video').videoHeight && !document.querySelector('.portrait-camera'));
+        assert.equal(await guest.evaluate(cameraUpright), true);
         await pages[1].setViewportSize({width: 390, height: 664});
         await guest.waitForFunction(() => innerWidth === 664);
         assert.equal(await guest.evaluate(landscapePreview), true);
+        assert.equal(await guest.evaluate(cameraUpright), true);
         await guest.locator('[aria-label="Close multiplayer panel"]').click();
         await guest.evaluate(() => clearInterval(window.testCameraTimer));
         // Closing the popup also stops an ongoing camera preview.

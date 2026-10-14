@@ -48,14 +48,18 @@
         const video = camera.querySelector('video');
         const preview = camera.querySelector('.pairing-camera-viewport');
         const mobile = document.documentElement.classList.contains('mobile-game-content');
-        // Safari may deliver portrait camera frames even inside our landscape
-        // iframe. Normalize only the mobile preview; decode the original pixels.
+        // Camera pixels are already oriented by the browser. Cancel the outer
+        // game's rotation rather than guessing from the camera aspect ratio.
         const fitPreview = () => {
             if (!mobile || !preview) return;
             preview.style.setProperty('--preview-width', `${preview.clientWidth}px`);
             preview.style.setProperty('--preview-height', `${preview.clientHeight}px`);
+            const rotation = Number(window.frameElement?.dataset.gameRotation) || 0;
+            preview.style.setProperty('--camera-rotation', `${-rotation}deg`);
+            preview.classList.toggle('rotated-camera', Math.abs(rotation) % 180 === 90);
             preview.classList.toggle('portrait-camera', video.videoHeight > video.videoWidth);
         };
+        window.addEventListener('dino-frame-rotation', fitPreview);
         video.addEventListener('loadedmetadata', fitPreview);
         video.addEventListener('resize', fitPreview);
         if (mobile && preview && window.ResizeObserver) new ResizeObserver(fitPreview).observe(preview);
