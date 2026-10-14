@@ -436,7 +436,7 @@
 
 .pairing-qr-display { margin: 12px 0; text-align: center; }
 .pairing-qr-display[hidden], .pairing-qr-camera[hidden] { display: none; }
-.pairing-qr-image { width: min(340px, 100%, calc(100dvh - 70px)); margin: auto; background: white; border-radius: 8px; overflow: hidden; }
+.pairing-qr-image { width: min(420px, 100%, calc(100dvh - 70px)); margin: auto; background: white; border-radius: 8px; overflow: hidden; }
 .pairing-qr-image svg { width: 100%; height: auto; display: block; }
 .pairing-qr-camera { margin: 12px 0; text-align: center; }
 .pairing-qr-camera video { display: block; width: min(440px, 100%); max-height: 260px; margin: 0 auto 8px; object-fit: contain; background: #000; border-radius: 8px; }

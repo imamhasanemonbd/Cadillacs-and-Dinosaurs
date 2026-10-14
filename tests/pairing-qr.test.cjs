@@ -39,3 +39,12 @@ test('unrelated or damaged QR payloads are rejected', async () => {
     await assert.rejects(tools.decode('https://unrelated.example/'));
     await assert.rejects(tools.decode('DINOQR1.not-valid-base64!'));
 });
+
+test('compact QR is smaller than the old double-base64 format and old QRs still decode', async () => {
+    const data=await new Response(new Blob([original]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer();
+    const legacy='DINOQR1.'+btoa(String.fromCharCode(...new Uint8Array(data)));
+    const tools=codec(); const compact=await tools.encode(original);
+    assert(compact.startsWith('DINOQR2.'));
+    assert(compact.length<legacy.length);
+    assert.equal(await tools.decode(legacy),original);
+});

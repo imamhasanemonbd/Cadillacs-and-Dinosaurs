@@ -3,13 +3,14 @@
     const encode = async code => {
         if (!window.CompressionStream) return code;
         try {
-            const data = await new Response(new Blob([code]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer();
-            return 'DINOQR1.' + btoa(String.fromCharCode(...new Uint8Array(data)));
+            const compact = code.startsWith('DINO1.') ? atob(code.slice(6)) : code;
+            const data = await new Response(new Blob([compact]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer();
+            return 'DINOQR2.' + btoa(String.fromCharCode(...new Uint8Array(data)));
         } catch (_) { return code; }
     };
     const decode = async payload => {
         if (payload.startsWith('DINO1.') && payload.length <= 65536) return payload;
-        if (!payload.startsWith('DINOQR1.') || payload.length > 65536) throw new Error('This is not a Dino pairing QR. Scan the other player’s QR.');
+        if ((!payload.startsWith('DINOQR1.') && !payload.startsWith('DINOQR2.')) || payload.length > 65536) throw new Error('This is not a Dino pairing QR. Scan the other player’s QR.');
         if (!window.DecompressionStream) throw new Error('This browser cannot read compressed pairing QR codes. Use copy/paste instead.');
         let bytes;
         try { bytes = Uint8Array.from(atob(payload.slice(8)), value => value.charCodeAt(0)); }
@@ -24,7 +25,8 @@
                 if (length > 65536) { await reader.cancel(); throw new Error('Pairing QR is too large.'); }
                 chunks.push(value);
             }
-            const code = await new Blob(chunks).text();
+            const text = await new Blob(chunks).text();
+            const code = payload.startsWith('DINOQR2.') ? 'DINO1.' + btoa(text) : text;
             if (!code.startsWith('DINO1.')) throw new Error('Invalid pairing QR.');
             return code;
         } catch (_) { throw new Error('The QR code is invalid. Show it again or use copy/paste.'); }
@@ -65,7 +67,15 @@
         if (mobile && preview && window.ResizeObserver) new ResizeObserver(fitPreview).observe(preview);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d', { willReadFrequently: true });
-        let stream = null, frame = null, generation = 0, renderGeneration = 0;
+        let stream = null, frame = null, generation = 0, renderGeneration = 0, qrModules = 0;
+        const fitQr = () => {
+            if (!qrModules || box.hidden) return;
+            const available = Math.min(420, box.clientWidth, innerHeight - 70);
+            const ratio = window.devicePixelRatio || 1;
+            const pixelsPerModule = Math.max(1, Math.floor(available * ratio / qrModules));
+            image.style.width = `${pixelsPerModule * qrModules / ratio}px`;
+        };
+        window.addEventListener('resize', fitQr);
         const stop = () => {
             generation++;
             if (frame !== null) cancelAnimationFrame(frame);
@@ -83,8 +93,10 @@
             const qr = window.qrcode(0, 'M'); qr.addData(payload, 'Byte');
             try { qr.make(); } catch (_) { throw new Error('This connection is too large for one QR. Use copy/paste instead.'); }
             image.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 16, scalable: true });
+            image.querySelector('svg')?.setAttribute('shape-rendering', 'crispEdges');
             if (document.activeElement?.matches('textarea, input')) document.activeElement.blur();
-            box.hidden = false;
+            qrModules = qr.getModuleCount() + 8;
+            box.hidden = false; fitQr();
             box.scrollIntoView({ block: 'nearest' });
         };
         const scan = async () => {
@@ -97,7 +109,7 @@
             await load();
             if (current !== generation || !dialog.open) return;
             let media;
-            try { media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, ...(mobile ? { aspectRatio: { ideal: 16 / 9 } } : {}) }, audio: false }); }
+            try { media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 24, max: 30 }, ...(mobile ? { aspectRatio: { ideal: 16 / 9 } } : {}) }, audio: false }); }
             catch (error) {
                 if (current !== generation) return;
                 if (error.name === 'NotAllowedError' || error.name === 'SecurityError') throw new Error('Camera permission was denied. Allow it in browser settings, or use copy/paste.');
@@ -105,19 +117,32 @@
             }
             if (current !== generation || !dialog.open) { media.getTracks().forEach(track => track.stop()); return; }
             stream = media; video.srcObject = media; camera.hidden = false;
+            const track = media.getVideoTracks()[0];
+            try {
+                if (track.getCapabilities?.().focusMode?.includes('continuous')) {
+                    track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(() => {});
+                }
+            } catch (_) {}
             try { await video.play(); } catch (_) { if (current !== generation) return; stop(); throw new Error('Camera preview could not start. Try scanning again or use copy/paste.'); }
             if (current !== generation) return;
             fitPreview();
             camera.scrollIntoView({ block: 'nearest' });
             say('Scanning locally. Hold the entire QR inside the camera view.');
-            let lastScan = 0;
+            let lastScan = 0, scans = 0;
             const tick = now => {
                 if (current !== generation) return;
-                if (now - lastScan > 200 && video.readyState >= 2 && video.videoWidth) {
+                if (now - lastScan > 125 && video.readyState >= 2 && video.videoWidth) {
                     lastScan = now;
-                    const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
-                    canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    // Alternate a detailed center crop and the whole camera view.
+                    // Full frames still find codes away from the center.
+                    const crop = ++scans % 2 === 1;
+                    const side = Math.min(video.videoWidth, video.videoHeight) * 0.9;
+                    const sw = crop ? side : video.videoWidth, sh = crop ? side : video.videoHeight;
+                    const scale = Math.min(1, (crop ? 960 : 1280) / Math.max(sw, sh));
+                    const width = Math.round(sw * scale), height = Math.round(sh * scale);
+                    if (canvas.width !== width) canvas.width = width;
+                    if (canvas.height !== height) canvas.height = height;
+                    context.drawImage(video, (video.videoWidth-sw)/2, (video.videoHeight-sh)/2, sw, sh, 0, 0, width, height);
                     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
                     const result = window.jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'dontInvert' });
                     if (result) {

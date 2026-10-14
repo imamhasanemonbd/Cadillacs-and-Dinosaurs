@@ -17,13 +17,18 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  await pages[0].waitForTimeout(1000);
  assert.notEqual(await host.evaluate(frame), beforePairing);
  assert.equal(await host.evaluate(()=>window.EJS_emulator.paused),false);
+ await host.evaluate(()=>{window.testOldChannelClose=window.dinoMultiplayer.channel.onclose;window.testOldChannelError=window.dinoMultiplayer.channel.onerror;});
  await host.locator('[aria-label="Close multiplayer panel"]').click();
  await host.waitForFunction(()=>!window.dinoMultiplayer.busy);
  assert.equal(await host.evaluate(()=>window.EJS_emulator.paused),false);
  await host.locator('#multiplayer-open').click();
  await host.locator('[data-mp=create]').click();await host.waitForFunction(()=>document.querySelector('#multiplayer-output').value.startsWith('DINO1.'),{},{timeout:20000});const offer=await host.locator('#multiplayer-output').inputValue();console.log('OFFER',offer.length);
+ await host.evaluate(()=>{window.testOldChannelClose();window.testOldChannelError();});
+ assert.equal(await host.evaluate(()=>window.dinoMultiplayer.busy && window.dinoMultiplayer.role==='host'),true);
  await guest.locator('#multiplayer-input').fill('broken code');await guest.locator('[data-mp=join]').click();assert.equal(await guest.evaluate(()=>window.dinoMultiplayer.busy),false);
  await guest.locator('#multiplayer-input').fill(offer);await guest.locator('[data-mp=join]').click();await guest.waitForFunction(()=>document.querySelector('#multiplayer-output').value.startsWith('DINO1.'),{},{timeout:20000});const reply=await guest.locator('#multiplayer-output').inputValue();console.log('REPLY',reply.length);
+ await guest.evaluate(()=>{const pc=window.dinoMultiplayer.peer;Object.defineProperty(pc,'connectionState',{configurable:true,value:'disconnected'});pc.onconnectionstatechange();delete pc.connectionState;});
+ assert.equal(await guest.evaluate(()=>window.dinoMultiplayer.busy),true);
  await host.locator('#multiplayer-input').fill(reply);await host.locator('[data-mp=finish]').click();
  for(const f of games)await f.waitForFunction(()=>window.dinoMultiplayer.active,{},{timeout:30000});console.log('ACTIVE');
  for(const f of games)await f.locator('[aria-label="Close multiplayer panel"]').click();
@@ -34,6 +39,19 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  for(const f of games)await f.waitForFunction(()=>window.dinoMultiplayer.lastVerifiedFrame>=120,{},{timeout:30000});
  for(const f of games)assert(await f.evaluate(()=>window.dinoMultiplayer.active && window.dinoMultiplayer.loop.frame>120 && window.dinoMultiplayer.lastVerifiedFrame>=120));
  console.log('VERIFIED',await Promise.all(games.map(f=>f.evaluate(()=>({frame:window.dinoMultiplayer.loop.frame,verified:window.dinoMultiplayer.lastVerifiedFrame,epoch:window.dinoMultiplayer.epoch})))));
+ // A transient transport disconnect must stall, then recover the same session.
+ const reconnectEpoch=await host.evaluate(()=>window.dinoMultiplayer.epoch);
+ const reconnectVerified=await host.evaluate(()=>window.dinoMultiplayer.lastVerifiedFrame);
+ await host.evaluate(()=>{const pc=window.dinoMultiplayer.peer;Object.defineProperty(pc,'connectionState',{configurable:true,value:'disconnected'});pc.onconnectionstatechange();});
+ await pages[0].waitForTimeout(150);
+ const disconnectedFrame=await host.evaluate(()=>window.dinoMultiplayer.loop.frame);
+ await pages[0].waitForTimeout(250);
+ assert.equal(await host.evaluate(()=>window.dinoMultiplayer.loop.frame),disconnectedFrame);
+ assert.equal(await host.evaluate(()=>window.dinoMultiplayer.active),true);
+ await host.evaluate(()=>{const pc=window.dinoMultiplayer.peer;delete pc.connectionState;pc.onconnectionstatechange();});
+ await host.waitForFunction(frame=>window.dinoMultiplayer.loop.frame>frame+10,disconnectedFrame,{timeout:5000});
+ assert.equal(await host.evaluate(()=>window.dinoMultiplayer.epoch),reconnectEpoch);
+ await host.waitForFunction(frame=>window.dinoMultiplayer.lastVerifiedFrame>frame,reconnectVerified,{timeout:5000});
  // Background one device: both must stop advancing, then continue the same session.
  await guest.evaluate(()=>{window.testHidden=true;Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.testHidden});document.dispatchEvent(new Event('visibilitychange'));});
  await pages[0].waitForTimeout(200);const stopped=await host.evaluate(()=>window.dinoMultiplayer.loop.frame);await pages[0].waitForTimeout(300);assert.equal(await host.evaluate(()=>window.dinoMultiplayer.loop.frame),stopped);
@@ -43,9 +61,19 @@ const {chromium}=require('playwright'); const assert=require('node:assert/strict
  const epoch=await host.evaluate(()=>window.dinoMultiplayer.epoch);await host.evaluate(()=>window.dinoMultiplayer.resync());
  for(const f of games)await f.waitForFunction(e=>window.dinoMultiplayer.active&&window.dinoMultiplayer.epoch>e,epoch,{timeout:10000});
  await pages[0].waitForTimeout(500);assert.equal(await guest.evaluate(()=>document.getElementById('btn-start-p1').getAttribute('aria-label')),'Start player two');
+ // Expiry is terminal; a late connected event must not claim play resumed.
+ await host.evaluate(()=>{
+   const pc=window.dinoMultiplayer.peer, schedule=window.setTimeout;
+   window.setTimeout=(fn,ms,...args)=>{const id=schedule.call(window,fn,ms,...args);if(ms===15000)window.testDisconnectExpiry=fn;return id;};
+   Object.defineProperty(pc,'connectionState',{configurable:true,value:'disconnected'});
+   try {pc.onconnectionstatechange();} finally {window.setTimeout=schedule;}
+   window.testDisconnectExpiry(); delete pc.connectionState; pc.onconnectionstatechange();
+ });
+ assert.equal(await host.evaluate(()=>window.dinoMultiplayer.active),false);
+ assert.match(await host.locator('.multiplayer-status').textContent(),/did not recover/);
  await guest.evaluate(()=>window.dinoMultiplayer.channel.close());await host.waitForFunction(()=>!window.dinoMultiplayer.active,{},{timeout:5000});
  for(const f of games)await f.evaluate(()=>window.dinoMultiplayer.leave());
  for(const f of games){assert.equal(await f.evaluate(()=>window.dinoMultiplayer.busy),false);assert.equal(await f.evaluate(()=>window.EJS_emulator.elements.menu.inert),false);assert.equal(await f.evaluate(()=>window.EJS_emulator.paused),false);}
- console.log('PASS: actual host/guest pairing, matching frames and RAM checks, remote movement/Coin/Start, background pause/resume, resync, disconnect freeze, Leave restores solo.');
+ console.log('PASS: actual host/guest pairing, matching frames and RAM checks, remote movement/Coin/Start, transient disconnect recovery with matching RAM, stale channel isolation, background pause/resume, resync, bounded disconnect expiry, Leave restores solo.');
   assert.deepEqual(errors,[]);await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

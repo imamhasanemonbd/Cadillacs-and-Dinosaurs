@@ -39,7 +39,8 @@
         const state = window.dinoMultiplayer = { busy: false, syncing: false, active: false, role: null, peer: null, channel: null, loop: null, epoch: 0 };
         let closing = false, ready = false, remotePaused = false, pendingState = null, engaged = false;
         let chunks = [], received = 0, priorPre, priorPost, didRun = false, prime = null;
-        let heartbeat, connectionTimer, snapshotTimer, gatheringCancel, operation = 0;
+        let heartbeat, connectionTimer, snapshotTimer, disconnectTimer, gatheringCancel, operation = 0;
+        let transportInterrupted = false;
         let hashes = new Map(), remoteHashes = new Map(), resyncs = 0;
         const guarded = [];
         const open = document.createElement('button');
@@ -85,6 +86,7 @@
         };
         const fail = message => {
             if (!engaged) { leave(); say(message + ' Solo game continues.'); return; }
+            clearTimeout(disconnectTimer); transportInterrupted = false;
             ready = false; state.active = false;
             say(message); open.textContent = '2P · Paused';
         };
@@ -112,7 +114,7 @@
             emulator.Module.dinoPreFrame = () => {
                 didRun = false;
                 if (prime) return true;
-                if (!ready || remotePaused || document.hidden || !state.active) return false;
+                if (!ready || remotePaused || transportInterrupted || document.hidden || !state.active) return false;
                 if (priorPre?.() === false) return false;
                 didRun = state.loop.before();
                 return didRun;
@@ -169,7 +171,7 @@
             channel.bufferedAmountLowThreshold = 64 * 1024;
             const finish = error => { clearTimeout(timer); channel.removeEventListener('bufferedamountlow', low); error ? reject(error) : resolve(); };
             const low = () => finish();
-            const timer = setTimeout(() => finish(new Error('State transfer timed out. Leave and pair again.')), 10000);
+            const timer = setTimeout(() => finish(new Error('State transfer timed out. Leave and pair again.')), 20000);
             channel.addEventListener('bufferedamountlow', low, { once: true });
         });
         let transferring = false;
@@ -239,7 +241,7 @@
                     if (!Number.isSafeInteger(message.size) || message.size < 1 || message.size > 2 * 1024 * 1024 || !Number.isSafeInteger(message.epoch)) throw new Error('Invalid game state.');
                     ready = false; state.active = false; native.pause(true); state.epoch = message.epoch;
                     pendingState = message; received = 0; chunks = [];
-                    clearTimeout(snapshotTimer); snapshotTimer = setTimeout(() => fail('State transfer stalled. Leave and pair again.'), 15000);
+                    clearTimeout(snapshotTimer); snapshotTimer = setTimeout(() => fail('State transfer stalled. Leave and pair again.'), 30000);
                 } else if (message.t === 'ready' && state.role === 'host' && message.epoch === state.epoch) {
                     send({ t: 'go', epoch: state.epoch }); begin();
                 } else if (message.t === 'go' && state.role === 'guest' && message.epoch === state.epoch) begin();
@@ -253,35 +255,63 @@
                     remotePaused = !!message.value;
                     if (remotePaused) say('The other device is backgrounded. Waiting without restarting.');
                     else say('Other device returned. Continuing the same game.');
-                } else if (message.t === 'ping') send({ t: 'pong', at: message.at });
+                } else if (message.t === 'ping') {
+                    if (typeof message.hidden === 'boolean') remotePaused = message.hidden;
+                    send({ t: 'pong', at: message.at, hidden: document.hidden });
+                }
                 else if (message.t === 'pong' && Number.isFinite(message.at)) {
+                    if (typeof message.hidden === 'boolean') remotePaused = message.hidden;
                     const latency = Math.round(performance.now() - message.at);
-                    if (state.active && !remotePaused) open.textContent = `${state.role === 'host' ? 'P1' : 'P2'} · ${latency} ms RTT`;
+                    if (state.active && !remotePaused && !transportInterrupted) open.textContent = `${state.role === 'host' ? 'P1' : 'P2'} · ${latency} ms RTT`;
                 } else if (message.t === 'stop') fail('Synchronization stopped. Leave and pair again.');
             } catch (error) { if (receiveOperation === operation) { send({ t: 'stop' }); fail(error.message); } }
         };
         const wire = channel => {
             state.channel = channel; channel.binaryType = 'arraybuffer';
             let messages = Promise.resolve(), opened = false;
-            channel.onmessage = event => { messages = messages.then(() => receive(event)); };
+            channel.onmessage = event => { messages = messages.then(() => { if (state.channel === channel) return receive(event); }); };
             const connected = () => {
                 if (opened || closing || state.channel !== channel) return;
                 opened = true;
                 engage();
                 say('Direct connection established. Synchronizing the host’s game…');
                 send({ t: 'hello', build: BUILD, settings: settingsSignature() });
-                heartbeat = setInterval(() => send({ t: 'ping', at: performance.now() }), 2000);
+                heartbeat = setInterval(() => send({ t: 'ping', at: performance.now(), hidden: document.hidden }), 2000);
             };
             channel.onopen = connected;
             if (channel.readyState === 'open') connected();
-            channel.onclose = () => { if (!closing) { clearInterval(heartbeat); fail('Connection closed. Game paused; leave and pair again.'); } };
-            channel.onerror = () => { if (!closing) fail('Direct connection failed. Try the same Wi-Fi and pair again.'); };
+            channel.onclose = () => { if (!closing && state.channel === channel) { clearInterval(heartbeat); fail('Connection closed. Game paused; leave and pair again.'); } };
+            channel.onerror = () => { if (!closing && state.channel === channel) fail('Direct connection failed. Try the same Wi-Fi and pair again.'); };
         };
         const peer = () => {
             const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
             state.peer = pc;
             pc.onconnectionstatechange = () => {
-                if (!closing && state.peer === pc && ['failed', 'disconnected'].includes(pc.connectionState)) fail('Connection interrupted. Game paused; leave and pair again.');
+                if (closing || state.peer !== pc) return;
+                if (pc.connectionState === 'connected') {
+                    const recovering = transportInterrupted;
+                    transportInterrupted = false; clearTimeout(disconnectTimer);
+                    if (recovering) {
+                        send({ t: 'paused', value: document.hidden });
+                        say('Connection recovered. Continuing the same game.');
+                    }
+                } else if (pc.connectionState === 'disconnected') {
+                    // Before the reply scan, a peer may still be waiting for the
+                    // other browser to finish signaling. Don't cancel its codes.
+                    if (!engaged) { say('Waiting for both QR scans and a direct connection. Keep both pages open.'); return; }
+                    if (transportInterrupted) return;
+                    transportInterrupted = true;
+                    if (state.loop) { state.loop.mask = 0; state.loop.pulses = 0; }
+                    say('Connection interrupted briefly. Waiting up to 15 seconds to recover without restarting…');
+                    clearTimeout(disconnectTimer);
+                    disconnectTimer = setTimeout(() => {
+                        if (state.peer === pc && transportInterrupted) fail('Connection did not recover. Game paused; leave and pair again on the same Wi-Fi.');
+                    }, 15000);
+                } else if (pc.connectionState === 'failed') {
+                    clearTimeout(disconnectTimer);
+                    if (!engaged) { say('Direct connection not established yet. Finish both scans on the same Wi-Fi; this network may block peer connections.'); return; }
+                    fail('The direct network connection failed. Game paused; leave and pair again on the same Wi-Fi.');
+                }
             };
             connectionTimer = setTimeout(() => { if (!state.active) fail('Pairing timed out. Leave and create fresh codes on the same Wi-Fi.'); }, 600000);
             return pc;
@@ -305,7 +335,7 @@
         };
         const join = async () => {
             const offer = decode(input.value, 'offer'); install('guest'); state.room = offer.room; resyncs = 0;
-            say('Preparing reply…'); const pc = peer(); pc.ondatachannel = event => { if (!state.channel) wire(event.channel); };
+            say('Preparing reply…'); const pc = peer(); pc.ondatachannel = event => { if (state.peer === pc && !closing && !state.channel) wire(event.channel); else event.channel.close(); };
             await pc.setRemoteDescription({ type: offer.type, sdp: offer.sdp });
             await pc.setLocalDescription(await pc.createAnswer()); await gather(pc);
             if (closing || state.peer !== pc) return; output.value = code(pc); await qr.show(output.value); if (closing || state.peer !== pc) return; say('Show this reply QR to the host so they can scan it. Keep this page open.');
@@ -321,7 +351,7 @@
         };
         const leave = () => {
             operation++; closing = true; qr.clear(); gatheringCancel?.();
-            ready = false; prime = null; state.active = false; clearInterval(heartbeat); clearTimeout(connectionTimer); clearTimeout(snapshotTimer);
+            ready = false; prime = null; state.active = false; clearInterval(heartbeat); clearTimeout(connectionTimer); clearTimeout(snapshotTimer); clearTimeout(disconnectTimer);
             state.channel?.close(); state.peer?.close();
             if (engaged) {
                 emulator.Module.dinoPreFrame = priorPre; emulator.Module.dinoPostFrame = priorPost;
@@ -330,7 +360,7 @@
             }
             engaged = false; state.syncing = false; state.busy = false; state.role = null;
             state.peer = null; state.channel = null; state.loop = null; pendingState = null; chunks = [];
-            remotePaused = false; transferring = false;
+            remotePaused = false; transportInterrupted = false; transferring = false;
             document.documentElement.classList.remove('multiplayer-active'); output.value = ''; input.value = '';
             document.getElementById('btn-start-p1').setAttribute('aria-label', 'Start player one');
             document.getElementById('btn-start-p1').title = '1P Start (1 / Enter)';

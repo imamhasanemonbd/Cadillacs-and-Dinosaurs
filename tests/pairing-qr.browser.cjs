@@ -28,22 +28,35 @@ const assert = require('node:assert/strict');
         await host.waitForFunction(() => !!document.querySelector('.pairing-qr-image svg'), {}, { timeout: 20000 });
         async function cameraFromQr(target, svg, width = 640, height = 640) {
             await target.evaluate(async ({markup, width, height}) => {
-                const image = new Image(); image.src = 'data:image/svg+xml;base64,' + btoa(markup); await image.decode();
+                const svgDocument = new DOMParser().parseFromString(markup, 'image/svg+xml');
+                const viewBox=svgDocument.documentElement.getAttribute('viewBox')?.split(/\s+/).map(Number);
+                const modules=viewBox ? viewBox[2]/4 : 0;
+                const qrSide=modules ? Math.floor(Math.min(width,height)/modules)*modules : Math.min(width,height);
+                svgDocument.documentElement.setAttribute('width',qrSide); svgDocument.documentElement.setAttribute('height',qrSide);
+                const image = new Image(); image.src = 'data:image/svg+xml;base64,' + btoa(new XMLSerializer().serializeToString(svgDocument)); await image.decode();
                 const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; window.testCameraCanvas = canvas;
                 const context = canvas.getContext('2d'); context.imageSmoothingEnabled = false;
                 window.testCameraStream = canvas.captureStream(10);
                 window.testCameraTimer = setInterval(() => {
-                    const side = Math.min(canvas.width, canvas.height);
+                    const side = Math.min(qrSide, canvas.width, canvas.height);
                     context.fillStyle = 'white'; context.fillRect(0, 0, canvas.width, canvas.height);
                     context.drawImage(image, (canvas.width-side)/2, (canvas.height-side)/2, side, side);
                 }, 100);
                 navigator.mediaDevices.getUserMedia = async () => window.testCameraStream;
+                window.testScanStarted=performance.now(); window.testDetectedAt=null;
+                window.testOriginalJsQr ||= window.jsQR;
+                window.jsQR=(...args)=>{
+                    const result=window.testOriginalJsQr(...args);
+                    if(result && window.testDetectedAt===null) window.testDetectedAt=performance.now();
+                    return result;
+                };
             }, {markup: svg, width, height});
         }
         const offerSvg = await host.locator('.pairing-qr-image').innerHTML();
-        await cameraFromQr(guest, offerSvg, 640, 960); await guest.locator('[data-mp=qr-scan]').click();
-        await guest.waitForFunction(() => document.querySelector('#multiplayer-output').value.startsWith('DINO1.') && !!document.querySelector('.pairing-qr-image svg'), {}, { timeout: 20000 });
+        await cameraFromQr(guest, offerSvg, 480, 800); await guest.locator('[data-mp=qr-scan]').click();
+        await guest.waitForFunction(() => document.querySelector('#multiplayer-output').value.startsWith('DINO1.') && !!document.querySelector('.pairing-qr-image svg'), {}, { timeout: 20000 }).catch(async error=>{console.error('Scan diagnostics',await guest.evaluate(()=>({status:document.querySelector('.multiplayer-status').textContent,detected:window.testDetectedAt,video:[document.querySelector('video').videoWidth,document.querySelector('video').videoHeight]})));throw error;});
         assert.equal(await guest.evaluate(() => window.testCameraStream.getTracks()[0].readyState), 'ended');
+        assert(await guest.evaluate(()=>window.testDetectedAt-window.testScanStarted<2000));
         await guest.evaluate(() => clearInterval(window.testCameraTimer));
         assert.equal(await guest.locator('.pairing-copy').getAttribute('open'), null);
         const replySvg = await guest.locator('.pairing-qr-image').innerHTML();
