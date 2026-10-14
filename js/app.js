@@ -535,11 +535,13 @@ class DinoArcadeApp {
         window.EJS_gameUrl = romUrlOrBlob;
         window.EJS_fullscreenOnLoaded = false;
         window.EJS_volume = 0.9;
+        window.EJS_defaultOptions = { 'save-state-location': 'browser', 'save-save-interval': '0' };
 
         // Callbacks
         window.EJS_onGameStart = () => {
             console.log('[DINO] Game loop started at 60 FPS');
             this.dismissStartOverlay();
+            window.EJS_emulator.changeSettingOption('save-save-interval', '0');
             window.setupSessionRecovery(window.EJS_emulator, this.romUrl);
             window.setupMultiplayer(window.EJS_emulator);
             requestAnimationFrame(() => {
@@ -551,8 +553,6 @@ class DinoArcadeApp {
             });
         };
 
-        window.EJS_onLoadState = () => this.showToast('💾 State Loaded Successfully', 'info');
-        window.EJS_onSaveState = () => this.showToast('💾 State Saved Successfully', 'info');
 
         // Retry a transient CDN failure without asking users to reload the page.
         const loadRuntime = (attempt = 0) => {

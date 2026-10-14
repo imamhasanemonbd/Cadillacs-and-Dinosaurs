@@ -12,37 +12,13 @@
         Promise.resolve().then(operation).then(finish, () => finish(fallback));
     });
 
-    // The core's save filesystem is separate from EmulatorJS's ROM/core caches.
-    // A stalled initial IndexedDB read otherwise blocks downloadFiles forever.
-    const guardSaveStorage = module => {
-        const backend = module.FS?.filesystems?.IDBFS;
-        if (!backend || backend.dinoGuardInstalled) return;
-        backend.dinoGuardInstalled = true;
-        const getRemote = backend.getRemoteSet;
-        const persist = backend.queuePersist;
-        const sync = backend.syncfs;
-        backend.getRemoteSet = (mount, callback) => {
-            if (module.dinoSaveStorage === 'available') return getRemote.call(backend, mount, callback);
-            let settled = false;
-            const finish = (error, data) => {
-                if (settled) return; // Never import a late database result into live gameplay.
-                settled = true; clearTimeout(timer);
-                if (error) {
-                    mount.dinoStorageUnavailable = true;
-                    module.dinoSaveStorage = 'unavailable';
-                } else module.dinoSaveStorage = 'available';
-                callback(error, data);
-            };
-            const timer = setTimeout(() => finish(new Error('Save storage did not respond; continuing in memory.')), 4000);
-            try { getRemote.call(backend, mount, finish); } catch (error) { finish(error); }
-        };
-        // After a failed initial read, writing an empty session back could erase
-        // old saves. Keep this mount in memory for this session instead.
-        backend.queuePersist = mount => { if (!mount.dinoStorageUnavailable) return persist.call(backend, mount); };
-        backend.syncfs = (mount, populate, callback) => {
-            if (mount.dinoStorageUnavailable) return callback(new Error('Save storage is unavailable for this session.'));
-            return sync.call(backend, mount, populate, callback);
-        };
+    // Start from empty core save RAM every visit. Manual Save State / Load State
+    // uses EmulatorJS.storage.states separately and remains persistent.
+    const useMemorySaveStorage = module => {
+        const filesystems = module.FS?.filesystems;
+        if (!filesystems?.MEMFS) return;
+        filesystems.IDBFS = filesystems.MEMFS;
+        module.dinoSaveStorage = 'memory-only';
     };
 
     window.prepareEmulatorStartup = emulator => {
@@ -65,8 +41,8 @@
                         postMainLoop: () => { options.postMainLoop?.(); module?.dinoPostFrame?.(); }
                     }).then(result => {
                         module = result; module.dinoFrameHooks = true;
-                        guardSaveStorage(module);
-                        if (emulator.textElem) emulator.textElem.textContent = 'Opening saved game storage…';
+                        useMemorySaveStorage(module);
+                        if (emulator.textElem) emulator.textElem.textContent = 'Loading game data…';
                         return module;
                     });
                 };
