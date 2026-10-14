@@ -12,7 +12,8 @@
     "vendor:qr": "node scripts/vendor-qr.cjs",
     "test:qr-browser": "node tests/pairing-qr.browser.cjs",
     "test:mobile-browser": "node tests/mobile-layout.browser.cjs",
-    "test:manual-browser": "node tests/manual-save.browser.cjs"
+    "test:manual-browser": "node tests/manual-save.browser.cjs",
+    "test:progress-browser": "node tests/startup-progress.browser.cjs"
   },
   "keywords": [
     "cadillacs-and-dinosaurs",

@@ -21,9 +21,58 @@
         module.dinoSaveStorage = 'memory-only';
     };
 
+    const setupProgress = emulator => {
+        const parent = emulator.elements?.parent;
+        if (!parent || typeof document === 'undefined') return;
+        const panel = document.createElement('div');
+        panel.className = 'dino-startup-progress'; panel.hidden = true;
+        panel.setAttribute('role', 'status'); panel.setAttribute('aria-live', 'polite');
+        const spinner = document.createElement('span'); spinner.className = 'dino-startup-spinner'; spinner.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('strong'), detail = document.createElement('span');
+        panel.append(spinner, label, detail); parent.appendChild(panel);
+        let timer, began = 0, finished = false, lastText = '';
+        const tick = () => {
+            const seconds = Math.floor((Date.now() - began) / 1000);
+            detail.textContent = seconds < 15 ? `${seconds}s · Please wait` : `${seconds}s · This step is taking longer than usual. If it stays here, check your connection.`;
+        };
+        const show = text => {
+            if (finished) return;
+            if (label.textContent !== text) { began = Date.now(); label.textContent = text; }
+            panel.hidden = false; parent.classList.add('dino-starting'); tick();
+            if (emulator.textElem) observer.observe(emulator.textElem, {childList:true, characterData:true, subtree:true});
+            if (!timer) timer = setInterval(tick, 1000);
+        };
+        const finish = () => {
+            if (finished || !emulator.started) return;
+            finished = true; clearInterval(timer); observer?.disconnect();
+            parent.classList.remove('dino-starting'); panel.remove();
+        };
+        const observer = new MutationObserver(() => {
+            const text = emulator.textElem?.textContent?.trim();
+            if (text && text !== lastText && !panel.hidden) { lastText = text; show(text); }
+        });
+        const error = emulator.startGameError;
+        if (typeof error === 'function') emulator.startGameError = function(message, ...args) {
+            show(message || 'Game could not start.'); clearInterval(timer); observer?.disconnect();
+            panel.classList.add('is-error'); detail.textContent = 'Check your connection and try again.';
+            return error.call(this, message, ...args);
+        };
+        // Paint the stage label before synchronous script/core initialization.
+        for (const [name, text] of [['initGameCore', 'Preparing game core…'], ['startGame', 'Starting game…']]) {
+            const original = emulator[name];
+            if (typeof original !== 'function') continue;
+            emulator[name] = function(...args) {
+                show(text);
+                requestAnimationFrame(() => setTimeout(() => original.apply(this, args), 0));
+            };
+        }
+        emulator.dinoStartupProgress = { show, finish };
+    };
+
     window.prepareEmulatorStartup = emulator => {
         if (emulator.dinoStartupPrepared) return;
         emulator.dinoStartupPrepared = true;
+        setupProgress(emulator);
         // The pinned runtime polls Safari audio every 10 ms behind a blocking
         // resume popup. Keep autoplay visible and unlock audio on existing controls.
         emulator.checkStarted = resumeAudio;
@@ -36,13 +85,15 @@
                 window.EJS_Runtime = options => {
                     let module;
                     if (emulator.textElem) emulator.textElem.textContent = 'Initializing game core…';
+                    emulator.dinoStartupProgress?.show('Initializing game core…');
                     return runtime({ ...options,
                         preMainLoop: () => options.preMainLoop?.() === false ? false : module?.dinoPreFrame?.(),
-                        postMainLoop: () => { options.postMainLoop?.(); module?.dinoPostFrame?.(); }
+                        postMainLoop: () => { options.postMainLoop?.(); module?.dinoPostFrame?.(); emulator.dinoStartupProgress?.finish(); }
                     }).then(result => {
                         module = result; module.dinoFrameHooks = true;
                         useMemorySaveStorage(module);
                         if (emulator.textElem) emulator.textElem.textContent = 'Loading game data…';
+                        emulator.dinoStartupProgress?.show('Loading game data…');
                         return module;
                     });
                 };

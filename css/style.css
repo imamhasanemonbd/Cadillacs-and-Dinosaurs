@@ -1084,3 +1084,27 @@ html, body {
 
 /* Automatic startup waits for the runtime guards, not for a Play click. */
 #game-viewport .ejs_start_button { visibility: hidden; }
+
+/* Stay visible until the first running frame, including after decompression. */
+.dino-startup-progress {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    background: #000;
+    color: #fff;
+    text-align: center;
+    font: 16px/1.5 sans-serif;
+}
+.dino-startup-progress[hidden] { display: none; }
+.dino-startup-progress > span:last-child { color: #aab7c8; font-size: 13px; max-width: 360px; }
+.dino-startup-spinner { width: 32px; height: 32px; border: 3px solid #334155; border-top-color: #00f5d4; border-radius: 50%; animation: dino-startup-spin 1s linear infinite; }
+.dino-startup-progress.is-error .dino-startup-spinner { display: none; }
+.dino-starting .ejs_loading_text { visibility: hidden; }
+@keyframes dino-startup-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .dino-startup-spinner { animation: none; } }
